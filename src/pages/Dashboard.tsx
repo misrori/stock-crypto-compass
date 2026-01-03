@@ -13,7 +13,8 @@ import {
   BarChart3,
   Zap,
   Globe,
-  Target
+  Target,
+  ScanSearch
 } from 'lucide-react';
 
 export default function Dashboard() {
@@ -132,7 +133,27 @@ export default function Dashboard() {
         )}
 
         {/* Main Navigation Cards */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {/* Scanner Card - Primary Feature */}
+          <Link to="/scanner" className="md:col-span-2">
+            <Card className="bg-gradient-to-br from-primary/10 to-accent/10 border-primary/30 hover:border-primary/60 transition-all cursor-pointer group h-full">
+              <CardHeader>
+                <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center mb-4 group-hover:shadow-[0_0_40px_hsl(var(--primary)/0.4)] transition-all">
+                  <ScanSearch className="w-7 h-7 text-primary-foreground" />
+                </div>
+                <CardTitle className="text-xl">Gold Hand Scanner</CardTitle>
+                <CardDescription className="text-base">
+                  Scan stocks, crypto & commodities with the Gold Hand Line indicator
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">
+                  Track bullish and bearish trends across markets with daily & weekly timeframes. See time since flip and trend strength.
+                </p>
+              </CardContent>
+            </Card>
+          </Link>
+
           <Link to="/stocks">
             <Card className="bg-card border-border hover:border-primary/50 transition-all cursor-pointer group h-full">
               <CardHeader>
@@ -171,7 +192,7 @@ export default function Dashboard() {
             </Card>
           </Link>
 
-          <Link to="/profile">
+          <Link to="/profile" className="md:col-span-2 lg:col-span-2">
             <Card className="bg-card border-border hover:border-secondary-foreground/30 transition-all cursor-pointer group h-full">
               <CardHeader>
                 <div className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center mb-4">
