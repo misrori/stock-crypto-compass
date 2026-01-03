@@ -1,4 +1,5 @@
 import { ExternalLink } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import {
   Table,
   TableBody,
@@ -69,6 +70,12 @@ const getTradingViewSymbol = (ticker: string, assetType: AssetType): string => {
 };
 
 export const ScannerTable = ({ data, assetType, loading }: ScannerTableProps) => {
+  const navigate = useNavigate();
+
+  const handleRowClick = (ticker: string) => {
+    navigate(`/scanner/${assetType}/${encodeURIComponent(ticker)}`);
+  };
+
   if (loading) {
     return (
       <div className="bg-card/50 backdrop-blur-sm border border-border rounded-xl overflow-hidden">
@@ -111,7 +118,8 @@ export const ScannerTable = ({ data, assetType, loading }: ScannerTableProps) =>
           {data.map((asset, index) => (
             <TableRow 
               key={asset.ticker} 
-              className="border-border hover:bg-muted/50 transition-colors"
+              className="border-border hover:bg-muted/50 transition-colors cursor-pointer"
+              onClick={() => handleRowClick(asset.ticker)}
             >
               <TableCell className="font-medium text-muted-foreground">
                 {index + 1}
@@ -148,9 +156,10 @@ export const ScannerTable = ({ data, assetType, loading }: ScannerTableProps) =>
                   href={`https://www.tradingview.com/chart/?symbol=${getTradingViewSymbol(asset.ticker, assetType)}`}
                   target="_blank"
                   rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
                   className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
                 >
-                  Open in TradingView
+                  TradingView
                   <ExternalLink className="h-3 w-3" />
                 </a>
               </TableCell>

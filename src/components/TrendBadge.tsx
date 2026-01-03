@@ -5,9 +5,10 @@ import { cn } from '@/lib/utils';
 interface TrendBadgeProps {
   color: 'gold' | 'blue' | 'grey' | 'gray';
   className?: string;
+  size?: 'sm' | 'md' | 'lg';
 }
 
-export const TrendBadge = ({ color, className }: TrendBadgeProps) => {
+export const TrendBadge = ({ color, className, size = 'md' }: TrendBadgeProps) => {
   const normalizedColor = color === 'gray' ? 'grey' : color;
   
   const config = {
@@ -30,16 +31,29 @@ export const TrendBadge = ({ color, className }: TrendBadgeProps) => {
 
   const { label, icon: Icon, className: badgeClassName } = config[normalizedColor];
 
+  const sizeClasses = {
+    sm: 'text-[10px] px-1.5 py-0.5',
+    md: 'text-xs px-2 py-1',
+    lg: 'text-sm px-3 py-1.5',
+  };
+
+  const iconSizes = {
+    sm: 'h-2.5 w-2.5',
+    md: 'h-3 w-3',
+    lg: 'h-4 w-4',
+  };
+
   return (
     <Badge 
       variant="outline" 
       className={cn(
-        'gap-1 font-semibold text-xs px-2 py-1',
+        'gap-1 font-semibold',
+        sizeClasses[size],
         badgeClassName,
         className
       )}
     >
-      <Icon className="h-3 w-3" />
+      <Icon className={iconSizes[size]} />
       {label}
     </Badge>
   );
