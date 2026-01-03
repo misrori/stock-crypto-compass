@@ -10,6 +10,7 @@ import Dashboard from "./pages/Dashboard";
 import Profile from "./pages/Profile";
 import StockWatch from "./pages/StockWatch";
 import CryptoWatch from "./pages/CryptoWatch";
+import Scanner from "./pages/Scanner";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -28,6 +29,7 @@ const App = () => (
             <Route path="/profile" element={<Profile />} />
             <Route path="/stocks" element={<StockWatch />} />
             <Route path="/crypto" element={<CryptoWatch />} />
+            <Route path="/scanner" element={<Scanner />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
