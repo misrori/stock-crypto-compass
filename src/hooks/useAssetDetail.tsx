@@ -128,9 +128,9 @@ const getAssetFolder = (assetType: AssetType): string => {
     case 'stocks':
       return 'stocks';
     case 'crypto':
-      return 'cryptos';
+      return 'crypto';
     case 'commodities':
-      return 'commodity';
+      return 'commodities';
     default:
       return 'stocks';
   }
