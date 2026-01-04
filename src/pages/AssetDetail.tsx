@@ -222,20 +222,20 @@ const AssetDetail = () => {
               <IndicatorsCard data={currentIntervalData} />
             </div>
 
-            {/* Strategies */}
+            {/* Strategies with Trade History */}
             <div className="space-y-4">
               <h2 className="text-xl font-bold text-foreground">Strategy Backtests</h2>
               <div className="grid grid-cols-1 gap-6">
                 {Object.entries(currentIntervalData.strategies).map(([name, strategy]) => (
-                  <StrategyCard key={name} summary={strategy.summary} strategyName={name} />
+                  <StrategyCard 
+                    key={name} 
+                    summary={strategy.summary} 
+                    strategyName={name}
+                    trades={strategy.trades}
+                  />
                 ))}
               </div>
             </div>
-
-            {/* Trade History */}
-            {currentIntervalData.strategies.goldhand_line?.trades && (
-              <TradesTable trades={currentIntervalData.strategies.goldhand_line.trades} showLatest={30} />
-            )}
           </>
         )}
       </main>

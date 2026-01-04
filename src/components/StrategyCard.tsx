@@ -1,10 +1,14 @@
-import { TrendingUp, TrendingDown, Clock, BarChart3, Target, Percent } from 'lucide-react';
+import { useState } from 'react';
+import { TrendingUp, TrendingDown, Clock, BarChart3, Target, Percent, ChevronDown } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import type { StrategySummary } from '@/hooks/useAssetDetail';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import type { StrategySummary, StrategyTrade } from '@/hooks/useAssetDetail';
+import { TradesTable } from './TradesTable';
 
 interface StrategyCardProps {
   summary: StrategySummary;
   strategyName: string;
+  trades?: StrategyTrade[];
 }
 
 const formatNumber = (value: number, decimals: number = 2): string => {
@@ -14,7 +18,8 @@ const formatNumber = (value: number, decimals: number = 2): string => {
   });
 };
 
-export const StrategyCard = ({ summary, strategyName }: StrategyCardProps) => {
+export const StrategyCard = ({ summary, strategyName, trades }: StrategyCardProps) => {
+  const [isTradesOpen, setIsTradesOpen] = useState(false);
   const winRate = summary['win_ratio(%)'];
   const isPositive = summary.cumulative_result > 1;
 
@@ -129,6 +134,21 @@ export const StrategyCard = ({ summary, strategyName }: StrategyCardProps) => {
           <p>Buy at: <span className="text-foreground capitalize">{summary.buy_at}</span> | Sell at: <span className="text-foreground capitalize">{summary.sell_at}</span></p>
           <p>First trade: {summary.first_trade_buy} | Data range: {summary.first_data_date} - {summary.last_data_date}</p>
         </div>
+
+        {/* Collapsible Trade History */}
+        {trades && trades.length > 0 && (
+          <Collapsible open={isTradesOpen} onOpenChange={setIsTradesOpen}>
+            <CollapsibleTrigger className="flex items-center justify-between w-full p-3 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors">
+              <span className="text-sm font-medium text-foreground">
+                Trade History ({trades.length} trades)
+              </span>
+              <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${isTradesOpen ? 'rotate-180' : ''}`} />
+            </CollapsibleTrigger>
+            <CollapsibleContent className="mt-3">
+              <TradesTable trades={trades} showLatest={30} showCard={false} />
+            </CollapsibleContent>
+          </Collapsible>
+        )}
       </CardContent>
     </Card>
   );
