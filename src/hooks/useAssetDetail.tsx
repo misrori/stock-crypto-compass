@@ -155,9 +155,10 @@ export const useAssetDetail = (
 
     try {
       const folder = getAssetFolder(assetType);
-      // Handle special characters in ticker names (like = in GC=F)
-      const encodedTicker = encodeURIComponent(ticker);
-      const url = `${GITHUB_BASE_URL}/${folder}/${encodedTicker}.json`;
+      // Convert ticker format: ETH-USD -> ETH_USD for file names
+      const fileName = ticker.replace(/-/g, '_');
+      const encodedFileName = encodeURIComponent(fileName);
+      const url = `${GITHUB_BASE_URL}/${folder}/${encodedFileName}.json`;
       
       const response = await fetch(url);
       
