@@ -123,6 +123,29 @@ interface UseAssetDetailResult {
 
 const GITHUB_BASE_URL = 'https://raw.githubusercontent.com/misrori/goldhand_data_collect/main';
 
+// Mapping commodity tickers to their file names
+const COMMODITY_FILE_MAPPING: Record<string, string> = {
+  'GC=F': 'gold',
+  'SI=F': 'silver',
+  'CL=F': 'crude_oil_wti',
+  'NG=F': 'natural_gas',
+  'HG=F': 'copper',
+  'PL=F': 'platinum',
+  'PA=F': 'palladium',
+  'ZC=F': 'corn',
+  'ZW=F': 'wheat',
+  'ZS=F': 'soybeans',
+  'CT=F': 'cotton',
+  'KC=F': 'coffee',
+  'SB=F': 'sugar',
+  'CC=F': 'cocoa',
+  'LE=F': 'live_cattle',
+  'HE=F': 'lean_hogs',
+  'BZ=F': 'brent_oil',
+  'ALI=F': 'aluminum',
+  'ZN=F': 'zinc',
+};
+
 const getAssetFolder = (assetType: AssetType): string => {
   switch (assetType) {
     case 'stocks':
@@ -155,8 +178,20 @@ export const useAssetDetail = (
 
     try {
       const folder = getAssetFolder(assetType);
-      // Convert ticker format: ETH-USD -> ETH_USD for file names
-      const fileName = ticker.replace(/-/g, '_');
+      
+      // Determine the file name based on asset type
+      let fileName: string;
+      if (assetType === 'commodities') {
+        // Use the commodity file mapping
+        fileName = COMMODITY_FILE_MAPPING[ticker] || ticker.replace(/=F$/, '').toLowerCase();
+      } else if (assetType === 'crypto') {
+        // Convert ticker format: ETH-USD -> ETH_USD for file names
+        fileName = ticker.replace(/-/g, '_');
+      } else {
+        // Stocks use ticker directly
+        fileName = ticker;
+      }
+      
       const encodedFileName = encodeURIComponent(fileName);
       const url = `${GITHUB_BASE_URL}/${folder}/${encodedFileName}.json`;
       
