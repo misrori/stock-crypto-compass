@@ -1,14 +1,15 @@
 import { useMemo } from 'react';
 import Plot from 'react-plotly.js';
 import type { Data, Shape, Annotations } from 'plotly.js';
-import type { StrategyTrade } from '@/hooks/useAssetDetail';
+import type { StrategyTrade, OHLCData } from '@/hooks/useAssetDetail';
 
 interface TradesChartProps {
   trades: StrategyTrade[];
   strategyName: string;
+  ohlcData?: OHLCData[];
 }
 
-export const TradesChart = ({ trades, strategyName }: TradesChartProps) => {
+export const TradesChart = ({ trades, strategyName, ohlcData }: TradesChartProps) => {
   const chartData = useMemo(() => {
     if (!trades || trades.length === 0) return null;
 
@@ -17,25 +18,64 @@ export const TradesChart = ({ trades, strategyName }: TradesChartProps) => {
       new Date(a.buy_date).getTime() - new Date(b.buy_date).getTime()
     );
 
-    // Create traces for buy markers (triangles up)
-    const buyDates: string[] = [];
-    const buyPrices: number[] = [];
-    const buyColors: string[] = [];
-    const buyTexts: string[] = [];
+    // Find the date range for trades
+    const firstTradeDate = new Date(sortedTrades[0].buy_date);
+    const lastTrade = sortedTrades[sortedTrades.length - 1];
+    const lastTradeDate = new Date(lastTrade.sell_date || lastTrade.buy_date);
 
-    // Create traces for sell markers (triangles down)
-    const sellDates: string[] = [];
-    const sellPrices: number[] = [];
-    const sellColors: string[] = [];
-    const sellTexts: string[] = [];
+    // Filter OHLC data to trade range (with some padding)
+    let filteredOhlc: OHLCData[] = [];
+    if (ohlcData && ohlcData.length > 0) {
+      // Add 30 days padding before first trade
+      const startPadding = new Date(firstTradeDate);
+      startPadding.setDate(startPadding.getDate() - 30);
+      
+      // Add 30 days padding after last trade
+      const endPadding = new Date(lastTradeDate);
+      endPadding.setDate(endPadding.getDate() + 30);
+
+      filteredOhlc = ohlcData.filter(d => {
+        const date = new Date(d.date);
+        return date >= startPadding && date <= endPadding;
+      });
+    }
+
+    const dataTraces: Data[] = [];
+
+    // Add OHLC candlestick chart if data available
+    if (filteredOhlc.length > 0) {
+      dataTraces.push({
+        x: filteredOhlc.map(d => d.date),
+        open: filteredOhlc.map(d => d.open),
+        high: filteredOhlc.map(d => d.high),
+        low: filteredOhlc.map(d => d.low),
+        close: filteredOhlc.map(d => d.close),
+        type: 'ohlc',
+        name: 'OHLC',
+        increasing: { line: { color: '#10b981' } },
+        decreasing: { line: { color: '#ef4444' } },
+      } as Data);
+    }
 
     // Create shapes for trade rectangles
     const shapes: Partial<Shape>[] = [];
     const annotations: Partial<Annotations>[] = [];
 
+    // Create traces for buy markers
+    const buyDates: string[] = [];
+    const buyPrices: number[] = [];
+    const buyColors: string[] = [];
+    const buyTexts: string[] = [];
+
+    // Create traces for sell markers
+    const sellDates: string[] = [];
+    const sellPrices: number[] = [];
+    const sellColors: string[] = [];
+    const sellTexts: string[] = [];
+
     sortedTrades.forEach((trade) => {
       const isProfit = trade.result >= 1;
-      const color = isProfit ? '#10b981' : '#ef4444'; // emerald-500 or red-500
+      const color = isProfit ? '#10b981' : '#ef4444';
       const resultPercent = ((trade.result - 1) * 100).toFixed(2);
 
       // Buy marker
@@ -82,27 +122,6 @@ export const TradesChart = ({ trades, strategyName }: TradesChartProps) => {
       }
     });
 
-    // Create line trace connecting buy and sell of same trade
-    const lineTraces: Data[] = [];
-    sortedTrades.forEach((trade) => {
-      if (trade.status === 'closed' && trade.sell_date && trade.sell_price) {
-        const isProfit = trade.result >= 1;
-        lineTraces.push({
-          x: [trade.buy_date, trade.sell_date],
-          y: [trade.buy_price, trade.sell_price],
-          mode: 'lines',
-          type: 'scatter',
-          line: {
-            color: isProfit ? 'rgba(16, 185, 129, 0.5)' : 'rgba(239, 68, 68, 0.5)',
-            width: 1,
-            dash: 'dot',
-          },
-          hoverinfo: 'skip',
-          showlegend: false,
-        } as Data);
-      }
-    });
-
     // Buy markers trace
     const buyTrace: Data = {
       x: buyDates,
@@ -112,7 +131,7 @@ export const TradesChart = ({ trades, strategyName }: TradesChartProps) => {
       name: 'Buy',
       marker: {
         symbol: 'triangle-up',
-        size: 12,
+        size: 14,
         color: buyColors,
         line: {
           color: 'white',
@@ -132,7 +151,7 @@ export const TradesChart = ({ trades, strategyName }: TradesChartProps) => {
       name: 'Sell',
       marker: {
         symbol: 'triangle-down',
-        size: 12,
+        size: 14,
         color: sellColors,
         line: {
           color: 'white',
@@ -143,12 +162,14 @@ export const TradesChart = ({ trades, strategyName }: TradesChartProps) => {
       hoverinfo: 'text',
     };
 
+    dataTraces.push(buyTrace, sellTrace);
+
     return {
-      data: [...lineTraces, buyTrace, sellTrace],
+      data: dataTraces,
       shapes,
       annotations,
     };
-  }, [trades]);
+  }, [trades, ohlcData]);
 
   if (!chartData) {
     return (
@@ -163,18 +184,19 @@ export const TradesChart = ({ trades, strategyName }: TradesChartProps) => {
       data={chartData.data}
       layout={{
         autosize: true,
-        height: 400,
+        height: 500,
         margin: { l: 60, r: 30, t: 30, b: 50 },
         paper_bgcolor: 'transparent',
         plot_bgcolor: 'transparent',
         font: {
-          color: '#a1a1aa', // zinc-400
+          color: '#a1a1aa',
         },
         xaxis: {
           title: 'Date',
           gridcolor: 'rgba(161, 161, 170, 0.1)',
           linecolor: 'rgba(161, 161, 170, 0.2)',
           tickformat: '%Y-%m-%d',
+          rangeslider: { visible: false },
         },
         yaxis: {
           title: 'Price ($)',

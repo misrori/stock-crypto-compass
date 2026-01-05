@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { TrendingUp, TrendingDown, Clock, BarChart3, Target, Percent, ChevronDown, LineChart } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import type { StrategySummary, StrategyTrade } from '@/hooks/useAssetDetail';
+import type { StrategySummary, StrategyTrade, OHLCData } from '@/hooks/useAssetDetail';
 import { TradesTable } from './TradesTable';
 import { TradesChart } from './TradesChart';
 
@@ -10,6 +10,7 @@ interface StrategyCardProps {
   summary: StrategySummary;
   strategyName: string;
   trades?: StrategyTrade[];
+  ohlcData?: OHLCData[];
 }
 
 const formatNumber = (value: number, decimals: number = 2): string => {
@@ -19,7 +20,7 @@ const formatNumber = (value: number, decimals: number = 2): string => {
   });
 };
 
-export const StrategyCard = ({ summary, strategyName, trades }: StrategyCardProps) => {
+export const StrategyCard = ({ summary, strategyName, trades, ohlcData }: StrategyCardProps) => {
   const [isChartOpen, setIsChartOpen] = useState(false);
   const [isTradesOpen, setIsTradesOpen] = useState(false);
   const winRate = summary['win_ratio(%)'];
@@ -150,7 +151,7 @@ export const StrategyCard = ({ summary, strategyName, trades }: StrategyCardProp
               </CollapsibleTrigger>
               <CollapsibleContent className="mt-3">
                 <div className="bg-muted/20 rounded-lg p-2">
-                  <TradesChart trades={trades} strategyName={strategyName} />
+                  <TradesChart trades={trades} strategyName={strategyName} ohlcData={ohlcData} />
                 </div>
               </CollapsibleContent>
             </Collapsible>

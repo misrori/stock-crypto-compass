@@ -104,6 +104,14 @@ export interface IntervalData {
   };
 }
 
+export interface OHLCData {
+  date: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+}
+
 export interface AssetDetail {
   ticker: string;
   is_crypto: boolean;
@@ -112,6 +120,8 @@ export interface AssetDetail {
     daily: IntervalData;
     weekly?: IntervalData;
   };
+  daily_ohlc?: OHLCData[];
+  weekly_ohlc?: OHLCData[];
 }
 
 interface UseAssetDetailResult {
