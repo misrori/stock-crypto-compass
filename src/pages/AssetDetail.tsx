@@ -232,6 +232,7 @@ const AssetDetail = () => {
                     summary={strategy.summary} 
                     strategyName={name}
                     trades={strategy.trades}
+                    ohlcData={timeframe === 'daily' ? data.daily_ohlc : data.weekly_ohlc}
                   />
                 ))}
               </div>
