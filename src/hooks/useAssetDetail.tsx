@@ -188,7 +188,7 @@ export const useAssetDetail = (
 
     try {
       const folder = getAssetFolder(assetType);
-      
+
       // Determine the file name based on asset type
       let fileName: string;
       if (assetType === 'commodities') {
@@ -201,17 +201,20 @@ export const useAssetDetail = (
         // Stocks use ticker directly
         fileName = ticker;
       }
-      
+
       const encodedFileName = encodeURIComponent(fileName);
       const url = `${GITHUB_BASE_URL}/${folder}/${encodedFileName}.json`;
-      
+
       const response = await fetch(url);
-      
+
       if (!response.ok) {
         throw new Error(`Failed to fetch data: ${response.status}`);
       }
-      
-      const jsonData: AssetDetail = await response.json();
+
+      const textData = await response.text();
+      // Handle NaN in JSON by replacing it with null
+      const processedText = textData.replace(/:\s*NaN/g, ': null');
+      const jsonData: AssetDetail = JSON.parse(processedText);
       setData(jsonData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch asset data');
