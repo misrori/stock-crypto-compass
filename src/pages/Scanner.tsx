@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/useAuth';
-import { useGoldHandData, type AssetType, type Timeframe, type TrendFilter } from '@/hooks/useGoldHandData';
+import { useGoldHandData, type AssetType, type Timeframe, type TrendFilter, type TimeSinceFilter } from '@/hooks/useGoldHandData';
 import { ScannerStats } from '@/components/ScannerStats';
 import { ScannerFilters } from '@/components/ScannerFilters';
 import { ScannerTable } from '@/components/ScannerTable';
@@ -14,14 +14,16 @@ const Scanner = () => {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
   
-  const [assetType, setAssetType] = useState<AssetType>('stocks');
+  const [assetType, setAssetType] = useState<AssetType>('crypto');
   const [timeframe, setTimeframe] = useState<Timeframe>('daily');
   const [trendFilter, setTrendFilter] = useState<TrendFilter>('all');
+  const [timeSinceFilter, setTimeSinceFilter] = useState<TimeSinceFilter>('all');
 
   const { data, loading, error, lastUpdate, stats, refetch } = useGoldHandData(
     assetType,
     timeframe,
-    trendFilter
+    trendFilter,
+    timeSinceFilter
   );
 
   // Redirect to auth if not logged in
@@ -167,6 +169,8 @@ const Scanner = () => {
               onTrendFilterChange={setTrendFilter}
               timeframe={timeframe}
               onTimeframeChange={setTimeframe}
+              timeSinceFilter={timeSinceFilter}
+              onTimeSinceFilterChange={setTimeSinceFilter}
             />
           </div>
         </div>

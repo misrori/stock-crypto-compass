@@ -1,14 +1,16 @@
-import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { cn } from '@/lib/utils';
-import type { TrendFilter, Timeframe } from '@/hooks/useGoldHandData';
+import type { TrendFilter, Timeframe, TimeSinceFilter } from '@/hooks/useGoldHandData';
 
 interface ScannerFiltersProps {
   trendFilter: TrendFilter;
   onTrendFilterChange: (filter: TrendFilter) => void;
   timeframe: Timeframe;
   onTimeframeChange: (timeframe: Timeframe) => void;
+  timeSinceFilter: TimeSinceFilter;
+  onTimeSinceFilterChange: (filter: TimeSinceFilter) => void;
 }
 
 export const ScannerFilters = ({
@@ -16,6 +18,8 @@ export const ScannerFilters = ({
   onTrendFilterChange,
   timeframe,
   onTimeframeChange,
+  timeSinceFilter,
+  onTimeSinceFilterChange,
 }: ScannerFiltersProps) => {
   return (
     <div className="bg-card/50 backdrop-blur-sm border border-border rounded-xl p-5 space-y-5">
@@ -27,6 +31,7 @@ export const ScannerFilters = ({
           onClick={() => {
             onTrendFilterChange('all');
             onTimeframeChange('daily');
+            onTimeSinceFilterChange('all');
           }}
           className="text-muted-foreground hover:text-foreground text-xs"
         >
@@ -76,6 +81,44 @@ export const ScannerFilters = ({
             NEUTRAL
           </Button>
         </div>
+      </div>
+
+      <div className="space-y-3">
+        <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+          <Clock className="h-3 w-3" />
+          Time Since Flipped
+        </label>
+        <ToggleGroup
+          type="single"
+          value={timeSinceFilter}
+          onValueChange={(value) => value && onTimeSinceFilterChange(value as TimeSinceFilter)}
+          className="justify-start flex-wrap"
+        >
+          <ToggleGroupItem 
+            value="all" 
+            className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+          >
+            All
+          </ToggleGroupItem>
+          <ToggleGroupItem 
+            value="7" 
+            className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+          >
+            ≤7 days
+          </ToggleGroupItem>
+          <ToggleGroupItem 
+            value="30"
+            className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+          >
+            ≤30 days
+          </ToggleGroupItem>
+          <ToggleGroupItem 
+            value="90"
+            className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
+          >
+            ≤90 days
+          </ToggleGroupItem>
+        </ToggleGroup>
       </div>
 
       <div className="space-y-3">
