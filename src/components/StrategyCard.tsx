@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { TrendingUp, TrendingDown, Clock, BarChart3, Target, Percent, ChevronDown } from 'lucide-react';
+import { TrendingUp, TrendingDown, Clock, BarChart3, Target, Percent, ChevronDown, LineChart } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import type { StrategySummary, StrategyTrade } from '@/hooks/useAssetDetail';
 import { TradesTable } from './TradesTable';
+import { TradesChart } from './TradesChart';
 
 interface StrategyCardProps {
   summary: StrategySummary;
@@ -19,6 +20,7 @@ const formatNumber = (value: number, decimals: number = 2): string => {
 };
 
 export const StrategyCard = ({ summary, strategyName, trades }: StrategyCardProps) => {
+  const [isChartOpen, setIsChartOpen] = useState(false);
   const [isTradesOpen, setIsTradesOpen] = useState(false);
   const winRate = summary['win_ratio(%)'];
   const isPositive = summary.cumulative_result > 1;
@@ -135,19 +137,36 @@ export const StrategyCard = ({ summary, strategyName, trades }: StrategyCardProp
           <p>First trade: {summary.first_trade_buy} | Data range: {summary.first_data_date} - {summary.last_data_date}</p>
         </div>
 
-        {/* Collapsible Trade History */}
+        {/* Collapsible Trade Visualization */}
         {trades && trades.length > 0 && (
-          <Collapsible open={isTradesOpen} onOpenChange={setIsTradesOpen}>
-            <CollapsibleTrigger className="flex items-center justify-between w-full p-3 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors">
-              <span className="text-sm font-medium text-foreground">
-                Trade History ({trades.length} trades)
-              </span>
-              <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${isTradesOpen ? 'rotate-180' : ''}`} />
-            </CollapsibleTrigger>
-            <CollapsibleContent className="mt-3">
-              <TradesTable trades={trades} showLatest={30} showCard={false} />
-            </CollapsibleContent>
-          </Collapsible>
+          <>
+            <Collapsible open={isChartOpen} onOpenChange={setIsChartOpen}>
+              <CollapsibleTrigger className="flex items-center justify-between w-full p-3 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors">
+                <span className="text-sm font-medium text-foreground flex items-center gap-2">
+                  <LineChart className="h-4 w-4" />
+                  Trade Visualization
+                </span>
+                <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${isChartOpen ? 'rotate-180' : ''}`} />
+              </CollapsibleTrigger>
+              <CollapsibleContent className="mt-3">
+                <div className="bg-muted/20 rounded-lg p-2">
+                  <TradesChart trades={trades} strategyName={strategyName} />
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+
+            <Collapsible open={isTradesOpen} onOpenChange={setIsTradesOpen}>
+              <CollapsibleTrigger className="flex items-center justify-between w-full p-3 bg-muted/30 rounded-lg hover:bg-muted/50 transition-colors">
+                <span className="text-sm font-medium text-foreground">
+                  Trade History ({trades.length} trades)
+                </span>
+                <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${isTradesOpen ? 'rotate-180' : ''}`} />
+              </CollapsibleTrigger>
+              <CollapsibleContent className="mt-3">
+                <TradesTable trades={trades} showLatest={30} showCard={false} />
+              </CollapsibleContent>
+            </Collapsible>
+          </>
         )}
       </CardContent>
     </Card>

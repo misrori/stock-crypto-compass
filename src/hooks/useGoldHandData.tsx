@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 export type AssetType = 'stocks' | 'crypto' | 'commodities';
 export type Timeframe = 'daily' | 'weekly';
 export type TrendFilter = 'all' | 'bullish' | 'bearish' | 'neutral';
+export type TimeSinceFilter = 'all' | '7' | '30' | '90';
 
 export interface GoldHandAsset {
   ticker: string;
@@ -77,7 +78,8 @@ const getFileUrl = (assetType: AssetType, timeframe: Timeframe): string => {
 export const useGoldHandData = (
   assetType: AssetType,
   timeframe: Timeframe,
-  trendFilter: TrendFilter = 'all'
+  trendFilter: TrendFilter = 'all',
+  timeSinceFilter: TimeSinceFilter = 'all'
 ): UseGoldHandDataResult => {
   const [rawData, setRawData] = useState<GoldHandAsset[]>([]);
   const [loading, setLoading] = useState(true);
@@ -116,11 +118,20 @@ export const useGoldHandData = (
   }, [fetchData]);
 
   const filteredData = rawData.filter((asset) => {
-    if (trendFilter === 'all') return true;
-    if (trendFilter === 'bullish') return asset.ghl_color === 'gold';
-    if (trendFilter === 'bearish') return asset.ghl_color === 'blue';
-    if (trendFilter === 'neutral') return asset.ghl_color === 'grey';
-    return true;
+    // Trend filter
+    let matchesTrend = true;
+    if (trendFilter === 'bullish') matchesTrend = asset.ghl_color === 'gold';
+    else if (trendFilter === 'bearish') matchesTrend = asset.ghl_color === 'blue';
+    else if (trendFilter === 'neutral') matchesTrend = asset.ghl_color === 'grey';
+    
+    // Time since filter
+    let matchesTime = true;
+    if (timeSinceFilter !== 'all') {
+      const days = parseInt(timeSinceFilter);
+      matchesTime = asset.ghl_days_since_change <= days;
+    }
+    
+    return matchesTrend && matchesTime;
   });
 
   const stats = {
