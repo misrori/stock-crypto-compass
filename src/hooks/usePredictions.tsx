@@ -1,49 +1,43 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import type { 
-  Prediction, 
-  PredictionDirection, 
-  PredictionHorizon, 
+import type {
+  ScenarioPrediction,
+  AggregatedScenarioData,
   PredictionReasoning,
-  AggregatedPredictions,
-  HORIZON_DAYS 
+  PredictionBucket
 } from '@/types/prediction';
 
 interface UsePredictionsResult {
-  userPredictions: Prediction[];
-  aggregatedData: Record<PredictionHorizon, AggregatedPredictions | null>;
+  userActivePrediction: ScenarioPrediction | null;
+  history: ScenarioPrediction[];
+  aggregatedData: AggregatedScenarioData | null;
   loading: boolean;
   error: string | null;
-  submitPrediction: (data: SubmitPredictionData) => Promise<{ error: Error | null }>;
-  hasActivePrediction: (horizon: PredictionHorizon) => boolean;
+  submitPrediction: (data: SubmitScenarioPredictionData) => Promise<{ error: Error | null }>;
+  isLocked: boolean;
   refetch: () => void;
 }
 
-interface SubmitPredictionData {
+interface SubmitScenarioPredictionData {
   assetTicker: string;
   assetType: string;
-  currentPrice: number;
-  direction: PredictionDirection;
-  horizon: PredictionHorizon;
-  expectedMoveBucket: number;
-  preciseTargetPrice: number | null;
+  bullishTarget: number;
+  bearishTarget: number;
+  bullishBucket: PredictionBucket;
+  bearishBucket: PredictionBucket;
+  bullishProbability: number;
+  bearishProbability: number;
   riskScore: number;
   reasoningTags: PredictionReasoning[];
   comment: string | null;
 }
 
-const HORIZON_DAYS_MAP: Record<PredictionHorizon, number> = {
-  '1_week': 7,
-  '1_month': 30,
-  '3_months': 90,
-  '1_year': 365,
-};
-
 export function usePredictions(assetTicker: string, assetType: string): UsePredictionsResult {
   const { user } = useAuth();
-  const [userPredictions, setUserPredictions] = useState<Prediction[]>([]);
-  const [allPredictions, setAllPredictions] = useState<Prediction[]>([]);
+  const [userActivePrediction, setUserActivePrediction] = useState<ScenarioPrediction | null>(null);
+  const [history, setHistory] = useState<ScenarioPrediction[]>([]);
+  const [allActivePredictions, setAllActivePredictions] = useState<ScenarioPrediction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -57,9 +51,11 @@ export function usePredictions(assetTicker: string, assetType: string): UsePredi
     setError(null);
 
     try {
-      // Fetch user's predictions for this asset
+      const now = new Date().toISOString();
+
+      // Fetch user's history for this asset
       const { data: userPreds, error: userError } = await (supabase as any)
-        .from('predictions')
+        .from('scenario_predictions')
         .select('*')
         .eq('user_id', user.id)
         .eq('asset_ticker', assetTicker)
@@ -68,19 +64,25 @@ export function usePredictions(assetTicker: string, assetType: string): UsePredi
 
       if (userError) throw userError;
 
+      const userHistory = (userPreds || []) as ScenarioPrediction[];
+      setHistory(userHistory);
+
+      // Find active user prediction (is_active = true AND not expired)
+      const active = userHistory.find(p => p.is_active && new Date(p.expires_at) > new Date());
+      setUserActivePrediction(active || null);
+
       // Fetch all active predictions for aggregation
-      const now = new Date().toISOString();
       const { data: allPreds, error: allError } = await (supabase as any)
-        .from('predictions')
+        .from('scenario_predictions')
         .select('*')
         .eq('asset_ticker', assetTicker)
         .eq('asset_type', assetType)
-        .gt('valid_until', now);
+        .eq('is_active', true)
+        .gt('expires_at', now);
 
       if (allError) throw allError;
 
-      setUserPredictions((userPreds || []) as Prediction[]);
-      setAllPredictions((allPreds || []) as Prediction[]);
+      setAllActivePredictions((allPreds || []) as ScenarioPrediction[]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch predictions');
     } finally {
@@ -92,124 +94,86 @@ export function usePredictions(assetTicker: string, assetType: string): UsePredi
     fetchPredictions();
   }, [fetchPredictions]);
 
-  const hasActivePrediction = useCallback((horizon: PredictionHorizon): boolean => {
-    const now = new Date();
-    return userPredictions.some(
-      p => p.horizon === horizon && new Date(p.valid_until) > now
-    );
-  }, [userPredictions]);
+  const isLocked = !userActivePrediction;
 
-  const getAggregatedData = useCallback((): Record<PredictionHorizon, AggregatedPredictions | null> => {
-    const horizons: PredictionHorizon[] = ['1_week', '1_month', '3_months', '1_year'];
-    const result: Record<PredictionHorizon, AggregatedPredictions | null> = {
-      '1_week': null,
-      '1_month': null,
-      '3_months': null,
-      '1_year': null,
-    };
+  const calculateAggregatedData = (): AggregatedScenarioData | null => {
+    if (isLocked || allActivePredictions.length === 0) return null;
 
-    horizons.forEach(horizon => {
-      // Only show aggregated data if user has active prediction for this horizon
-      if (!hasActivePrediction(horizon)) {
-        return;
-      }
+    const total = allActivePredictions.length;
+    let totalBullProb = 0;
+    let totalBearProb = 0;
+    let totalRisk = 0;
+    const bullTargets: number[] = [];
+    const bearTargets: number[] = [];
+    const bucketDist: Record<string, number> = {};
+    const reasoningDist: Record<string, number> = {};
 
-      const horizonPredictions = allPredictions.filter(p => p.horizon === horizon);
-      if (horizonPredictions.length === 0) {
-        return;
-      }
+    allActivePredictions.forEach(p => {
+      totalBullProb += p.bullish_probability;
+      totalBearProb += p.bearish_probability;
+      totalRisk += p.risk_score;
+      bullTargets.push(p.bullish_target_price);
+      bearTargets.push(p.bearish_target_price);
 
-      // Direction distribution
-      const directionDistribution = {
-        long: horizonPredictions.filter(p => p.direction === 'long').length,
-        short: horizonPredictions.filter(p => p.direction === 'short').length,
-        neutral: horizonPredictions.filter(p => p.direction === 'neutral').length,
-      };
+      bucketDist[p.bullish_bucket] = (bucketDist[p.bullish_bucket] || 0) + 1;
+      bucketDist[p.bearish_bucket] = (bucketDist[p.bearish_bucket] || 0) + 1;
 
-      // Bucket distribution
-      const bucketDistribution: Record<number, number> = {};
-      horizonPredictions.forEach(p => {
-        bucketDistribution[p.expected_move_bucket] = (bucketDistribution[p.expected_move_bucket] || 0) + 1;
+      p.reasoning_tags.forEach(tag => {
+        reasoningDist[tag] = (reasoningDist[tag] || 0) + 1;
       });
-
-      // Target prices statistics
-      const targetPrices = horizonPredictions
-        .map(p => p.precise_target_price)
-        .filter((p): p is number => p !== null)
-        .sort((a, b) => a - b);
-
-      const median = targetPrices.length > 0 
-        ? targetPrices[Math.floor(targetPrices.length / 2)] 
-        : null;
-      const percentile25 = targetPrices.length >= 4 
-        ? targetPrices[Math.floor(targetPrices.length * 0.25)] 
-        : null;
-      const percentile75 = targetPrices.length >= 4 
-        ? targetPrices[Math.floor(targetPrices.length * 0.75)] 
-        : null;
-
-      // Average risk score
-      const avgRiskScore = horizonPredictions.reduce((acc, p) => acc + p.risk_score, 0) / horizonPredictions.length;
-
-      // Reasoning breakdown
-      const reasoningBreakdown: Record<PredictionReasoning, number> = {
-        'technical_analysis': 0,
-        'fundamental_analysis': 0,
-        'macro_rates': 0,
-        'news_events': 0,
-        'momentum_trend': 0,
-        'onchain_flow': 0,
-        'intuition_experience': 0,
-      };
-      horizonPredictions.forEach(p => {
-        (p.reasoning_tags as PredictionReasoning[]).forEach(tag => {
-          reasoningBreakdown[tag] = (reasoningBreakdown[tag] || 0) + 1;
-        });
-      });
-
-      result[horizon] = {
-        horizon,
-        totalCount: horizonPredictions.length,
-        directionDistribution,
-        bucketDistribution,
-        targetPrices: {
-          median,
-          percentile25,
-          percentile75,
-          all: targetPrices,
-        },
-        avgRiskScore,
-        reasoningBreakdown,
-      };
     });
 
-    return result;
-  }, [allPredictions, hasActivePrediction]);
+    const sortNumeric = (a: number, b: number) => a - b;
+    bullTargets.sort(sortNumeric);
+    bearTargets.sort(sortNumeric);
 
-  const submitPrediction = async (data: SubmitPredictionData): Promise<{ error: Error | null }> => {
-    if (!user) {
-      return { error: new Error('Must be logged in to submit prediction') };
-    }
+    const getMedian = (arr: number[]) => arr[Math.floor(arr.length / 2)];
+    const getPercentile = (arr: number[], q: number) => arr[Math.floor(arr.length * q)];
 
-    const validUntil = new Date();
-    validUntil.setDate(validUntil.getDate() + HORIZON_DAYS_MAP[data.horizon]);
+    return {
+      total_active: total,
+      bullish_weight: totalBullProb / total,
+      bearish_weight: totalBearProb / total,
+      bullish_median_target: getMedian(bullTargets),
+      bearish_median_target: getMedian(bearTargets),
+      bullish_percentiles: {
+        p25: getPercentile(bullTargets, 0.25),
+        p75: getPercentile(bullTargets, 0.75)
+      },
+      bearish_percentiles: {
+        p25: getPercentile(bearTargets, 0.25),
+        p75: getPercentile(bearTargets, 0.75)
+      },
+      bucket_distribution: bucketDist,
+      reasoning_breakdown: reasoningDist as Record<PredictionReasoning, number>,
+      avg_risk: totalRisk / total
+    };
+  };
+
+  const submitPrediction = async (data: SubmitScenarioPredictionData): Promise<{ error: Error | null }> => {
+    if (!user) return { error: new Error('Must be logged in') };
+
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7);
 
     try {
       const { error: insertError } = await (supabase as any)
-        .from('predictions')
+        .from('scenario_predictions')
         .insert({
           user_id: user.id,
           asset_ticker: data.assetTicker,
           asset_type: data.assetType,
-          direction: data.direction,
-          horizon: data.horizon,
-          expected_move_bucket: data.expectedMoveBucket,
-          precise_target_price: data.preciseTargetPrice,
-          current_price_at_prediction: data.currentPrice,
+          bullish_target_price: data.bullishTarget,
+          bearish_target_price: data.bearishTarget,
+          bullish_bucket: data.bullishBucket,
+          bearish_bucket: data.bearishBucket,
+          bullish_probability: data.bullishProbability,
+          bearish_probability: data.bearishProbability,
           risk_score: data.riskScore,
           reasoning_tags: data.reasoningTags,
           comment: data.comment,
-          valid_until: validUntil.toISOString(),
+          expires_at: expiresAt.toISOString(),
+          is_active: true
         });
 
       if (insertError) throw insertError;
@@ -222,12 +186,13 @@ export function usePredictions(assetTicker: string, assetType: string): UsePredi
   };
 
   return {
-    userPredictions,
-    aggregatedData: getAggregatedData(),
+    userActivePrediction,
+    history,
+    aggregatedData: calculateAggregatedData(),
     loading,
     error,
     submitPrediction,
-    hasActivePrediction,
-    refetch: fetchPredictions,
+    isLocked,
+    refetch: fetchPredictions
   };
 }

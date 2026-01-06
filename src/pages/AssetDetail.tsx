@@ -5,14 +5,16 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/useAuth';
+import { Badge } from '@/components/ui/badge';
 import { useAssetDetail, type IntervalData } from '@/hooks/useAssetDetail';
 import { usePredictions } from '@/hooks/usePredictions';
 import { GoldHandStatusCard } from '@/components/GoldHandStatusCard';
 import { IndicatorsCard } from '@/components/IndicatorsCard';
 import { StrategyCard } from '@/components/StrategyCard';
-import { PredictionForm } from '@/components/PredictionForm';
-import { AggregatedPredictions } from '@/components/AggregatedPredictions';
-import { UserPredictions } from '@/components/UserPredictions';
+import { ScenarioPredictionForm } from '@/components/ScenarioPredictionForm';
+import { ScenarioAggregatedView } from '@/components/ScenarioAggregatedView';
+import { PredictionHistory } from '@/components/PredictionHistory';
+import { ScenarioPriceMap } from '@/components/ScenarioPriceMap';
 import type { AssetType, Timeframe } from '@/hooks/useGoldHandData';
 
 declare global {
@@ -28,22 +30,23 @@ const AssetDetail = () => {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
   const chartContainerRef = useRef<HTMLDivElement>(null);
-  
+
   const [timeframe, setTimeframe] = useState<Timeframe>('daily');
-  
+
   const assetType = (type || 'stocks') as AssetType;
   const decodedTicker = ticker ? decodeURIComponent(ticker) : '';
-  
+
   const { data, loading, error, refetch } = useAssetDetail(decodedTicker, assetType);
-  const { 
-    userPredictions, 
-    aggregatedData, 
-    submitPrediction, 
-    hasActivePrediction,
-    refetch: refetchPredictions 
+  const {
+    userActivePrediction,
+    history: predictionLog,
+    aggregatedData,
+    submitPrediction,
+    isLocked,
+    refetch: refetchPredictions
   } = usePredictions(decodedTicker, assetType);
 
-  const currentPrice = data?.intervals[timeframe]?.latest_close || data?.intervals.daily?.latest_close || 0;
+  const currentPrice = data?.intervals[timeframe]?.price_summary.last_close || data?.intervals.daily?.price_summary.last_close || 0;
 
   // Redirect to auth if not logged in
   useEffect(() => {
@@ -79,7 +82,7 @@ const AssetDetail = () => {
         });
       }
     };
-    
+
     document.head.appendChild(script);
 
     return () => {
@@ -141,7 +144,7 @@ const AssetDetail = () => {
                 </p>
               </div>
             </div>
-            
+
             <div className="flex items-center gap-3">
               <a
                 href={`https://www.tradingview.com/chart/?symbol=${getTradingViewSymbol(decodedTicker, assetType)}`}
@@ -196,14 +199,14 @@ const AssetDetail = () => {
             <div className="flex items-center justify-between">
               <Tabs value={timeframe} onValueChange={(v) => setTimeframe(v as Timeframe)}>
                 <TabsList className="bg-card/50 border border-border">
-                  <TabsTrigger 
-                    value="daily" 
+                  <TabsTrigger
+                    value="daily"
                     className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
                   >
                     <Calendar className="h-4 w-4" />
                     Daily
                   </TabsTrigger>
-                  <TabsTrigger 
+                  <TabsTrigger
                     value="weekly"
                     disabled={!data.intervals.weekly}
                     className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
@@ -221,7 +224,7 @@ const AssetDetail = () => {
 
             {/* TradingView Chart */}
             <div className="bg-card/50 backdrop-blur-sm border border-border rounded-xl overflow-hidden">
-              <div 
+              <div
                 id="tradingview-widget"
                 ref={chartContainerRef}
                 className="w-full h-[500px]"
@@ -229,40 +232,39 @@ const AssetDetail = () => {
             </div>
 
             {/* Gold Hand Status and Indicators */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Gold Hand Status, Indicators and Price Map */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               <GoldHandStatusCard data={currentIntervalData} ticker={decodedTicker} />
               <IndicatorsCard data={currentIntervalData} />
+              <ScenarioPriceMap
+                currentPrice={currentPrice}
+                userActivePrediction={userActivePrediction}
+                aggregatedData={aggregatedData}
+              />
             </div>
 
             {/* Predictions Section */}
-            <div className="space-y-4">
-              <h2 className="text-xl font-bold text-foreground">Predictions</h2>
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-black uppercase tracking-tight text-foreground">Market Consciousness</h2>
+                <Badge variant="outline" className="border-primary/20 text-primary bg-primary/5 uppercase tracking-widest text-[10px] font-black">Beta Layer</Badge>
+              </div>
+
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <PredictionForm
+                <ScenarioPredictionForm
                   assetTicker={decodedTicker}
                   assetType={assetType}
                   currentPrice={currentPrice}
-                  onSubmit={async (formData) => {
-                    const result = await submitPrediction({
-                      assetTicker: decodedTicker,
-                      assetType,
-                      currentPrice,
-                      ...formData,
-                    });
-                    if (!result.error) refetchPredictions();
-                    return result;
-                  }}
-                  hasActivePrediction={hasActivePrediction}
+                  onSubmit={submitPrediction}
+                  hasActivePrediction={!isLocked}
                 />
-                <AggregatedPredictions
-                  aggregatedData={aggregatedData}
-                  hasActivePrediction={hasActivePrediction}
-                  currentPrice={currentPrice}
+                <ScenarioAggregatedView
+                  data={aggregatedData}
+                  isLocked={isLocked}
                 />
               </div>
-              {userPredictions.length > 0 && (
-                <UserPredictions predictions={userPredictions} currentPrice={currentPrice} />
-              )}
+
+              <PredictionHistory history={predictionLog} />
             </div>
 
             {/* Strategies with Trade History */}
@@ -270,9 +272,9 @@ const AssetDetail = () => {
               <h2 className="text-xl font-bold text-foreground">Strategy Backtests</h2>
               <div className="grid grid-cols-1 gap-6">
                 {Object.entries(currentIntervalData.strategies).map(([name, strategy]) => (
-                  <StrategyCard 
-                    key={name} 
-                    summary={strategy.summary} 
+                  <StrategyCard
+                    key={name}
+                    summary={strategy.summary}
                     strategyName={name}
                     trades={strategy.trades}
                     ohlcData={timeframe === 'daily' ? data.daily_ohlc : data.weekly_ohlc}

@@ -5,16 +5,17 @@ import { useProfile } from '@/hooks/useProfile';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { 
-  TrendingUp, 
-  Bitcoin, 
-  User, 
-  LogOut, 
+import {
+  TrendingUp,
+  Bitcoin,
+  User,
+  LogOut,
   BarChart3,
   Zap,
   Globe,
   Target,
-  ScanSearch
+  ScanSearch,
+  Search
 } from 'lucide-react';
 
 export default function Dashboard() {
@@ -48,8 +49,8 @@ export default function Dashboard() {
     );
   }
 
-  const isProfileComplete = profile?.trading_frequency && 
-    profile?.trading_instruments?.length && 
+  const isProfileComplete = profile?.trading_frequency &&
+    profile?.trading_instruments?.length &&
     profile?.interested_sectors?.length;
 
   return (
@@ -71,15 +72,34 @@ export default function Dashboard() {
 
       <main className="max-w-7xl mx-auto px-6 py-8">
         {/* Welcome Section */}
-        <div className="mb-8">
-          <h2 className="text-3xl font-bold mb-2">
-            Welcome back, {profile?.display_name || 'Trader'}!
-          </h2>
-          <p className="text-muted-foreground">
-            {isProfileComplete 
-              ? 'Access your watchlists and track your favorite assets.'
-              : 'Complete your profile to get personalized recommendations.'}
-          </p>
+        <div className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-6">
+          <div className="space-y-2">
+            <h2 className="text-3xl font-bold">
+              Welcome back, {profile?.display_name || 'Trader'}!
+            </h2>
+            <p className="text-muted-foreground">
+              {isProfileComplete
+                ? 'Access your watchlists and track your favorite assets.'
+                : 'Complete your profile to get personalized recommendations.'}
+            </p>
+          </div>
+          <div className="flex gap-3">
+            <Button
+              onClick={() => navigate('/predictions')}
+              className="bg-primary text-primary-foreground font-black uppercase tracking-widest px-8 rounded-xl shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all h-12"
+            >
+              <Zap className="w-4 h-4 mr-2" />
+              Post New Idea
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => navigate('/scanner')}
+              className="h-12 rounded-xl px-6 border-primary/20 hover:bg-primary/5 font-bold"
+            >
+              <Search className="w-4 h-4 mr-2" />
+              Scanner
+            </Button>
+          </div>
         </div>
 
         {/* Quick Stats */}
@@ -192,7 +212,7 @@ export default function Dashboard() {
             </Card>
           </Link>
 
-          <Link to="/profile" className="md:col-span-2 lg:col-span-2">
+          <Link to="/profile">
             <Card className="bg-card border-border hover:border-secondary-foreground/30 transition-all cursor-pointer group h-full">
               <CardHeader>
                 <div className="w-12 h-12 rounded-xl bg-secondary flex items-center justify-center mb-4">
@@ -200,7 +220,7 @@ export default function Dashboard() {
                 </div>
                 <CardTitle>Your Profile</CardTitle>
                 <CardDescription>
-                  {isProfileComplete 
+                  {isProfileComplete
                     ? 'View and update your trading preferences'
                     : 'Complete your trading profile'}
                 </CardDescription>
@@ -210,6 +230,25 @@ export default function Dashboard() {
                   {isProfileComplete
                     ? 'Manage your interests, favorite resources, and more'
                     : 'Set up your trading frequency, interests, and favorites'}
+                </p>
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link to="/predictions">
+            <Card className="bg-gradient-to-br from-indigo-500/10 to-purple-500/10 border-indigo-500/30 hover:border-indigo-500/60 transition-all cursor-pointer group h-full">
+              <CardHeader>
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center mb-4 group-hover:shadow-[0_0_30px_rgba(99,102,241,0.4)] transition-all">
+                  <Target className="w-6 h-6 text-white" />
+                </div>
+                <CardTitle>Prediction Center</CardTitle>
+                <CardDescription>
+                  Access the Market Consciousness
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">
+                  View your active scenarios, participation history, and crowd sentiment analytics across all assets.
                 </p>
               </CardContent>
             </Card>

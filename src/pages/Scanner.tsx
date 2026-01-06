@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, RefreshCw, BarChart3, Bitcoin, Package } from 'lucide-react';
+import { ArrowLeft, RefreshCw, BarChart3, Bitcoin, Package, Target } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -13,7 +13,7 @@ import { ScannerTable } from '@/components/ScannerTable';
 const Scanner = () => {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
-  
+
   const [assetType, setAssetType] = useState<AssetType>('crypto');
   const [timeframe, setTimeframe] = useState<Timeframe>('daily');
   const [trendFilter, setTrendFilter] = useState<TrendFilter>('all');
@@ -85,8 +85,17 @@ const Scanner = () => {
                 </p>
               </div>
             </div>
-            
+
             <div className="flex items-center gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate('/predictions')}
+                className="gap-2 border-primary/20 hover:border-primary/50 text-primary"
+              >
+                <Target className="h-4 w-4" />
+                Predictions
+              </Button>
               <Button
                 variant="outline"
                 size="sm"
@@ -104,8 +113,8 @@ const Scanner = () => {
 
       <main className="container mx-auto px-4 py-6 space-y-6">
         {/* Asset Type Tabs */}
-        <Tabs 
-          value={assetType} 
+        <Tabs
+          value={assetType}
           onValueChange={(v) => setAssetType(v as AssetType)}
           className="w-full"
         >
@@ -126,7 +135,7 @@ const Scanner = () => {
         </Tabs>
 
         {/* Stats */}
-        <ScannerStats 
+        <ScannerStats
           total={stats.total}
           bullish={stats.bullish}
           bearish={stats.bearish}
@@ -155,8 +164,8 @@ const Scanner = () => {
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Table */}
           <div className="lg:col-span-3 order-2 lg:order-1">
-            <ScannerTable 
-              data={data} 
+            <ScannerTable
+              data={data}
               assetType={assetType}
               loading={loading}
             />
