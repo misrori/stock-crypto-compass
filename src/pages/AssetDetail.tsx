@@ -6,10 +6,13 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import { useAssetDetail, type IntervalData } from '@/hooks/useAssetDetail';
+import { usePredictions } from '@/hooks/usePredictions';
 import { GoldHandStatusCard } from '@/components/GoldHandStatusCard';
 import { IndicatorsCard } from '@/components/IndicatorsCard';
 import { StrategyCard } from '@/components/StrategyCard';
-import { TradesTable } from '@/components/TradesTable';
+import { PredictionForm } from '@/components/PredictionForm';
+import { AggregatedPredictions } from '@/components/AggregatedPredictions';
+import { UserPredictions } from '@/components/UserPredictions';
 import type { AssetType, Timeframe } from '@/hooks/useGoldHandData';
 
 declare global {
@@ -32,6 +35,15 @@ const AssetDetail = () => {
   const decodedTicker = ticker ? decodeURIComponent(ticker) : '';
   
   const { data, loading, error, refetch } = useAssetDetail(decodedTicker, assetType);
+  const { 
+    userPredictions, 
+    aggregatedData, 
+    submitPrediction, 
+    hasActivePrediction,
+    refetch: refetchPredictions 
+  } = usePredictions(decodedTicker, assetType);
+
+  const currentPrice = data?.intervals[timeframe]?.latest_close || data?.intervals.daily?.latest_close || 0;
 
   // Redirect to auth if not logged in
   useEffect(() => {
@@ -220,6 +232,37 @@ const AssetDetail = () => {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <GoldHandStatusCard data={currentIntervalData} ticker={decodedTicker} />
               <IndicatorsCard data={currentIntervalData} />
+            </div>
+
+            {/* Predictions Section */}
+            <div className="space-y-4">
+              <h2 className="text-xl font-bold text-foreground">Predictions</h2>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <PredictionForm
+                  assetTicker={decodedTicker}
+                  assetType={assetType}
+                  currentPrice={currentPrice}
+                  onSubmit={async (formData) => {
+                    const result = await submitPrediction({
+                      assetTicker: decodedTicker,
+                      assetType,
+                      currentPrice,
+                      ...formData,
+                    });
+                    if (!result.error) refetchPredictions();
+                    return result;
+                  }}
+                  hasActivePrediction={hasActivePrediction}
+                />
+                <AggregatedPredictions
+                  aggregatedData={aggregatedData}
+                  hasActivePrediction={hasActivePrediction}
+                  currentPrice={currentPrice}
+                />
+              </div>
+              {userPredictions.length > 0 && (
+                <UserPredictions predictions={userPredictions} currentPrice={currentPrice} />
+              )}
             </div>
 
             {/* Strategies with Trade History */}
