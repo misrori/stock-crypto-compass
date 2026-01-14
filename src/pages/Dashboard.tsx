@@ -15,7 +15,8 @@ import {
   Globe,
   Target,
   ScanSearch,
-  Search
+  Search,
+  Star
 } from 'lucide-react';
 
 export default function Dashboard() {
@@ -58,7 +59,7 @@ export default function Dashboard() {
       {/* Header */}
       <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold font-mono text-gradient">TradeWatch</h1>
+          <h1 className="text-2xl font-bold font-mono text-gradient">Goldhand Finance</h1>
           <div className="flex items-center gap-4">
             <span className="text-sm text-muted-foreground">
               {profile?.display_name || user?.email}
@@ -90,6 +91,14 @@ export default function Dashboard() {
             >
               <Zap className="w-4 h-4 mr-2" />
               Post New Idea
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => navigate('/watchlist')}
+              className="h-12 rounded-xl px-6 border-primary/20 hover:bg-primary/5 font-bold"
+            >
+              <Star className="w-4 h-4 mr-2" />
+              Watchlist
             </Button>
             <Button
               variant="outline"
@@ -154,59 +163,60 @@ export default function Dashboard() {
 
         {/* Main Navigation Cards */}
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {/* Scanner Card - Primary Feature */}
+          {/* Scanner Card - NOW Primary Feature */}
           <Link to="/scanner" className="md:col-span-2">
             <Card className="bg-gradient-to-br from-primary/10 to-accent/10 border-primary/30 hover:border-primary/60 transition-all cursor-pointer group h-full">
               <CardHeader>
                 <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center mb-4 group-hover:shadow-[0_0_40px_hsl(var(--primary)/0.4)] transition-all">
-                  <ScanSearch className="w-7 h-7 text-primary-foreground" />
+                  <TrendingUp className="w-7 h-7 text-primary-foreground" />
                 </div>
-                <CardTitle className="text-xl">Gold Hand Scanner</CardTitle>
+                <CardTitle className="text-xl">Market Scanner</CardTitle>
                 <CardDescription className="text-base">
-                  Scan stocks, crypto & commodities with the Gold Hand Line indicator
+                  Track bullish and bearish trends across markets with the Gold Hand Line
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground">
-                  Track bullish and bearish trends across markets with daily & weekly timeframes. See time since flip and trend strength.
+                  Quick view of current trends across all assets with daily & weekly timeframes. See trend strength and time since flip.
                 </p>
               </CardContent>
             </Card>
           </Link>
 
-          <Link to="/stocks">
+          {/* Screener Card - Secondary Feature */}
+          <Link to="/screener">
             <Card className="bg-card border-border hover:border-primary/50 transition-all cursor-pointer group h-full">
               <CardHeader>
                 <div className="w-12 h-12 rounded-xl gradient-primary flex items-center justify-center mb-4 group-hover:glow-primary transition-all">
-                  <TrendingUp className="w-6 h-6 text-primary-foreground" />
+                  <ScanSearch className="w-6 h-6 text-primary-foreground" />
                 </div>
-                <CardTitle>StockWatch</CardTitle>
+                <CardTitle>Advanced Screener</CardTitle>
                 <CardDescription>
-                  Track top US stocks with real-time TradingView charts
+                  Multi-factor filtering
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground">
-                  Monitor AAPL, MSFT, GOOGL, AMZN, TSLA, and more
+                  Filter by sector, cap, and technical indicators.
                 </p>
               </CardContent>
             </Card>
           </Link>
 
-          <Link to="/crypto">
-            <Card className="bg-card border-border hover:border-accent/50 transition-all cursor-pointer group h-full">
+          <Link to="/predictions">
+            <Card className="bg-gradient-to-br from-indigo-500/10 to-purple-500/10 border-indigo-500/30 hover:border-indigo-500/60 transition-all cursor-pointer group h-full">
               <CardHeader>
-                <div className="w-12 h-12 rounded-xl bg-accent flex items-center justify-center mb-4 group-hover:shadow-[0_0_30px_hsl(var(--accent)/0.3)] transition-all">
-                  <Bitcoin className="w-6 h-6 text-accent-foreground" />
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center mb-4 group-hover:shadow-[0_0_30px_rgba(99,102,241,0.4)] transition-all">
+                  <Target className="w-6 h-6 text-white" />
                 </div>
-                <CardTitle>CryptoWatch</CardTitle>
+                <CardTitle>Prediction Center</CardTitle>
                 <CardDescription>
-                  Track top cryptocurrencies with live price charts
+                  Market Consciousness
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground">
-                  Follow BTC, ETH, SOL, XRP, and top 20 cryptos
+                  View crowd sentiment and participation history.
                 </p>
               </CardContent>
             </Card>
@@ -221,34 +231,13 @@ export default function Dashboard() {
                 <CardTitle>Your Profile</CardTitle>
                 <CardDescription>
                   {isProfileComplete
-                    ? 'View and update your trading preferences'
-                    : 'Complete your trading profile'}
+                    ? 'Manage your preferences'
+                    : 'Complete your profile'}
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground">
-                  {isProfileComplete
-                    ? 'Manage your interests, favorite resources, and more'
-                    : 'Set up your trading frequency, interests, and favorites'}
-                </p>
-              </CardContent>
-            </Card>
-          </Link>
-
-          <Link to="/predictions">
-            <Card className="bg-gradient-to-br from-indigo-500/10 to-purple-500/10 border-indigo-500/30 hover:border-indigo-500/60 transition-all cursor-pointer group h-full">
-              <CardHeader>
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center mb-4 group-hover:shadow-[0_0_30px_rgba(99,102,241,0.4)] transition-all">
-                  <Target className="w-6 h-6 text-white" />
-                </div>
-                <CardTitle>Prediction Center</CardTitle>
-                <CardDescription>
-                  Access the Market Consciousness
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">
-                  View your active scenarios, participation history, and crowd sentiment analytics across all assets.
+                  Update your interests and favorite trading resources.
                 </p>
               </CardContent>
             </Card>

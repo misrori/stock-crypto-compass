@@ -82,7 +82,7 @@ export default function Auth() {
       {/* Left Panel - Branding */}
       <div className="hidden lg:flex lg:w-1/2 gradient-primary p-12 flex-col justify-between">
         <div>
-          <h1 className="text-4xl font-bold text-primary-foreground font-mono">TradeWatch</h1>
+          <h1 className="text-4xl font-bold text-primary-foreground font-mono">Goldhand Finance</h1>
           <p className="text-primary-foreground/80 mt-2">Your Personal Trading Hub</p>
         </div>
 
@@ -118,7 +118,7 @@ export default function Auth() {
           </div>
         </div>
 
-        <p className="text-primary-foreground/50 text-sm">© 2024 TradeWatch. All rights reserved.</p>
+        <p className="text-primary-foreground/50 text-sm">© 2026 Goldhand Finance. All rights reserved.</p>
       </div>
 
       {/* Right Panel - Auth Form */}
@@ -126,7 +126,7 @@ export default function Auth() {
         <Card className="w-full max-w-md border-border bg-card">
           <CardHeader className="text-center">
             <div className="lg:hidden mb-4">
-              <h1 className="text-3xl font-bold text-gradient font-mono">TradeWatch</h1>
+              <h1 className="text-3xl font-bold text-gradient font-mono">Goldhand Finance</h1>
             </div>
             <CardTitle className="text-2xl">Welcome</CardTitle>
             <CardDescription>Sign in to your account or create a new one</CardDescription>

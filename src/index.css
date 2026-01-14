@@ -102,7 +102,12 @@
     font-family: 'Inter', system-ui, sans-serif;
   }
 
-  h1, h2, h3, h4, h5, h6 {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     font-family: 'JetBrains Mono', monospace;
   }
 }
@@ -111,19 +116,66 @@
   .font-mono {
     font-family: 'JetBrains Mono', monospace;
   }
-  
+
   .gradient-primary {
     background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(142 70% 35%) 100%);
   }
-  
+
   .glow-primary {
     box-shadow: 0 0 30px hsl(var(--primary) / 0.3);
   }
-  
+
   .text-gradient {
     background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
+}
+
+/* Custom Radiant Slider Styles (Universal) */
+.radiant-slider {
+  @apply h-1.5 cursor-pointer;
+}
+
+.radiant-slider .bg-primary {
+  background: #10b981 !important;
+  /* Default Emerald */
+}
+
+/* Variant: Rose Accent */
+.radiant-slider.accent-rose .bg-primary {
+  background: #f43f5e !important;
+}
+
+/* Variant: Emerald Accent */
+.radiant-slider.accent-emerald .bg-primary {
+  background: #10b981 !important;
+}
+
+.radiant-slider [role="slider"] {
+  width: 20px !important;
+  height: 20px !important;
+  background-color: #0c0d10 !important;
+  border: 2px solid #10b981 !important;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.4) !important;
+  cursor: grab;
+  transition: all 0.2s ease;
+}
+
+/* Thumb variant for Rose */
+.radiant-slider.accent-rose [role="slider"] {
+  border-color: #f43f5e !important;
+  box-shadow: 0 0 10px rgba(244, 63, 94, 0.4) !important;
+}
+
+/* Thumb variant for Emerald (explicit) */
+.radiant-slider.accent-emerald [role="slider"] {
+  border-color: #10b981 !important;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.4) !important;
+}
+
+.radiant-slider [role="slider"]:active {
+  cursor: grabbing;
+  transform: scale(1.1);
 }

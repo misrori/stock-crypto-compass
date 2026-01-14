@@ -3,17 +3,12 @@ import {
     Users,
     TrendingUp,
     TrendingDown,
-    Brain,
-    AlertTriangle,
     BarChart3
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { Label } from '@/components/ui/label';
 import {
-    type AggregatedScenarioData,
-    REASONING_LABELS
+    type AggregatedScenarioData
 } from '@/types/prediction';
 
 interface ScenarioAggregatedViewProps {
@@ -32,7 +27,7 @@ export function ScenarioAggregatedView({ data, isLocked }: ScenarioAggregatedVie
                     </div>
                     <h3 className="text-2xl font-black uppercase tracking-tight mb-2">Crowd Sentiment Locked</h3>
                     <p className="text-sm text-muted-foreground max-w-[280px] leading-relaxed mb-8">
-                        The market consciousness is hidden. Submit your prediction to unlock current bullish/bearish expectations.
+                        The market consciousness is hidden. Submit your tip to unlock current bullish/bearish expectations.
                     </p>
                     <div className="flex gap-2">
                         <Badge variant="outline" className="text-[10px] font-bold uppercase tracking-widest border-primary/30 text-primary">Anti-Free-Rider Mode</Badge>
@@ -55,7 +50,7 @@ export function ScenarioAggregatedView({ data, isLocked }: ScenarioAggregatedVie
             <Card className="border-border bg-card/40 backdrop-blur-xl h-full flex items-center justify-center p-8 min-h-[400px]">
                 <div className="text-center space-y-4">
                     <Users className="w-12 h-12 text-muted-foreground/30 mx-auto" />
-                    <p className="text-sm text-muted-foreground font-medium uppercase tracking-widest">No active predictions yet</p>
+                    <p className="text-sm text-muted-foreground font-medium uppercase tracking-widest">No active tips yet</p>
                 </div>
             </Card>
         );
@@ -68,9 +63,7 @@ export function ScenarioAggregatedView({ data, isLocked }: ScenarioAggregatedVie
         bullish_median_target,
         bearish_median_target,
         bullish_percentiles,
-        bearish_percentiles,
-        reasoning_breakdown,
-        avg_risk
+        bearish_percentiles
     } = data;
 
     return (
@@ -128,45 +121,17 @@ export function ScenarioAggregatedView({ data, isLocked }: ScenarioAggregatedVie
                     </div>
                 </div>
 
-                {/* Reasoning Stats */}
-                <div className="space-y-4">
-                    <Label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                        <Brain className="w-3.5 h-3.5" /> Crowdsourced Logic
-                    </Label>
-                    <div className="space-y-3">
-                        {Object.entries(reasoning_breakdown)
-                            .sort(([, a], [, b]) => (b as number) - (a as number))
-                            .slice(0, 4)
-                            .map(([tag, count]) => {
-                                const percentage = Math.round(((count as number) / (total_active * 2)) * 100);
-                                return (
-                                    <div key={tag} className="space-y-1.5">
-                                        <div className="flex justify-between text-[11px] font-bold">
-                                            <span>{REASONING_LABELS[tag as keyof typeof REASONING_LABELS]}</span>
-                                            <span className="text-muted-foreground">{percentage}%</span>
-                                        </div>
-                                        <Progress value={percentage} className="h-1 bg-muted/20" />
-                                    </div>
-                                );
-                            })}
-                    </div>
-                </div>
-
-                {/* Consensus Risk */}
+                {/* Consensus Sentiment */}
                 <div className="pt-6 border-t border-border/50 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center border border-primary/20">
-                            <AlertTriangle className={`w-5 h-5 ${avg_risk > 3.5 ? 'text-rose-500' : 'text-primary'}`} />
+                            <BarChart3 className="w-5 h-5 text-primary" />
                         </div>
                         <div>
-                            <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground leading-none mb-1">Risk Appetite</div>
-                            <div className="text-sm font-black uppercase">{avg_risk.toFixed(1)} / 5.0</div>
-                        </div>
-                    </div>
-                    <div className="text-right">
-                        <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground leading-none mb-1">Sentiment</div>
-                        <div className={`text-sm font-black uppercase ${bullish_weight > 55 ? 'text-emerald-500' : bearish_weight > 55 ? 'text-rose-500' : 'text-primary'}`}>
-                            {bullish_weight > 60 ? 'Greedy' : bullish_weight > 52 ? 'Bullish' : bearish_weight > 60 ? 'Fearful' : bearish_weight > 52 ? 'Bearish' : 'Neutral'}
+                            <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground leading-none mb-1">Market Mood</div>
+                            <div className={`text-sm font-black uppercase ${bullish_weight > 55 ? 'text-emerald-500' : bearish_weight > 55 ? 'text-rose-500' : 'text-primary'}`}>
+                                {bullish_weight > 60 ? 'Greedy' : bullish_weight > 52 ? 'Bullish' : bearish_weight > 60 ? 'Fearful' : bearish_weight > 52 ? 'Bearish' : 'Neutral'}
+                            </div>
                         </div>
                     </div>
                 </div>

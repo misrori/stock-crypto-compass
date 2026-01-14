@@ -6,7 +6,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import { Badge } from '@/components/ui/badge';
-import { useAssetDetail, type IntervalData } from '@/hooks/useAssetDetail';
+import { useAssetDetail, type IntervalData, type Strategy } from '@/hooks/useAssetDetail';
 import { usePredictions } from '@/hooks/usePredictions';
 import { GoldHandStatusCard } from '@/components/GoldHandStatusCard';
 import { IndicatorsCard } from '@/components/IndicatorsCard';
@@ -16,6 +16,8 @@ import { ScenarioAggregatedView } from '@/components/ScenarioAggregatedView';
 import { PredictionHistory } from '@/components/PredictionHistory';
 import { ScenarioPriceMap } from '@/components/ScenarioPriceMap';
 import type { AssetType, Timeframe } from '@/hooks/useGoldHandData';
+import { useWatchlist } from '@/hooks/useWatchlist';
+import { Star } from 'lucide-react';
 
 declare global {
   interface Window {
@@ -30,13 +32,14 @@ const AssetDetail = () => {
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
   const chartContainerRef = useRef<HTMLDivElement>(null);
+  const { isInWatchlist, toggleWatchlist } = useWatchlist();
 
   const [timeframe, setTimeframe] = useState<Timeframe>('daily');
 
   const assetType = (type || 'stocks') as AssetType;
   const decodedTicker = ticker ? decodeURIComponent(ticker) : '';
 
-  const { data, loading, error, refetch } = useAssetDetail(decodedTicker, assetType);
+  const { data, loading, error, refetch } = useAssetDetail(decodedTicker, assetType, timeframe);
   const {
     userActivePrediction,
     history: predictionLog,
@@ -64,7 +67,7 @@ const AssetDetail = () => {
     script.async = true;
     script.onload = () => {
       if (window.TradingView && chartContainerRef.current) {
-        const symbol = getTradingViewSymbol(decodedTicker, assetType);
+        const symbol = getTradingViewSymbol(decodedTicker, assetType, data);
         new window.TradingView.widget({
           container_id: chartContainerRef.current.id,
           symbol: symbol,
@@ -92,7 +95,16 @@ const AssetDetail = () => {
     };
   }, [data, decodedTicker, assetType, timeframe]);
 
-  const getTradingViewSymbol = (ticker: string, assetType: AssetType): string => {
+  const getTradingViewSymbol = (ticker: string, assetType: AssetType, data: any): string => {
+    // Use tradingview_id from data if available
+    const tradingViewId = data?.intervals?.[timeframe]?.extra_metrics?.tradingview_id
+      || data?.intervals?.daily?.extra_metrics?.tradingview_id;
+
+    if (tradingViewId) {
+      return tradingViewId;
+    }
+
+    // Fallback to manual mapping
     if (assetType === 'crypto') {
       const cleanTicker = ticker.replace('-USD', '').replace('_USD', '').replace('USD', '');
       return `BINANCE:${cleanTicker}USDT`;
@@ -138,7 +150,17 @@ const AssetDetail = () => {
                 <ArrowLeft className="h-5 w-5" />
               </Button>
               <div>
-                <h1 className="text-2xl font-bold text-foreground">{decodedTicker}</h1>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-2xl font-bold text-foreground">{decodedTicker}</h1>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-muted-foreground hover:text-yellow-500 transition-colors"
+                    onClick={() => toggleWatchlist(decodedTicker, assetType)}
+                  >
+                    <Star className={`h-5 w-5 ${isInWatchlist(decodedTicker, assetType) ? 'fill-yellow-400 text-yellow-500' : ''}`} />
+                  </Button>
+                </div>
                 <p className="text-sm text-muted-foreground capitalize">
                   {assetType} • {data?.is_crypto ? 'Cryptocurrency' : 'Traditional Asset'}
                 </p>
@@ -147,7 +169,7 @@ const AssetDetail = () => {
 
             <div className="flex items-center gap-3">
               <a
-                href={`https://www.tradingview.com/chart/?symbol=${getTradingViewSymbol(decodedTicker, assetType)}`}
+                href={`https://www.tradingview.com/chart/?symbol=${getTradingViewSymbol(decodedTicker, assetType, data)}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors"
@@ -257,6 +279,7 @@ const AssetDetail = () => {
                   currentPrice={currentPrice}
                   onSubmit={submitPrediction}
                   hasActivePrediction={!isLocked}
+                  activePrediction={userActivePrediction}
                 />
                 <ScenarioAggregatedView
                   data={aggregatedData}
@@ -267,20 +290,117 @@ const AssetDetail = () => {
               <PredictionHistory history={predictionLog} />
             </div>
 
-            {/* Strategies with Trade History */}
+            {/* Strategies with Trade History - Grouped by Type */}
             <div className="space-y-4">
               <h2 className="text-xl font-bold text-foreground">Strategy Backtests</h2>
-              <div className="grid grid-cols-1 gap-6">
-                {Object.entries(currentIntervalData.strategies).map(([name, strategy]) => (
-                  <StrategyCard
-                    key={name}
-                    summary={strategy.summary}
-                    strategyName={name}
-                    trades={strategy.trades}
-                    ohlcData={timeframe === 'daily' ? data.daily_ohlc : data.weekly_ohlc}
-                  />
-                ))}
-              </div>
+
+              {(() => {
+                // Group strategies by type
+                const goldHandStrategies: [string, Strategy][] = [];
+                const rsiStrategies: [string, Strategy][] = [];
+                const otherStrategies: [string, Strategy][] = [];
+
+                Object.entries(currentIntervalData.strategies).forEach(([name, strategy]) => {
+                  if (name.startsWith('goldhand_line')) {
+                    goldHandStrategies.push([name, strategy]);
+                  } else if (name.startsWith('rsi_')) {
+                    rsiStrategies.push([name, strategy]);
+                  } else {
+                    otherStrategies.push([name, strategy]);
+                  }
+                });
+
+                // Don't show tabs if only one category has strategies
+                const categoriesWithData = [
+                  goldHandStrategies.length > 0,
+                  rsiStrategies.length > 0,
+                  otherStrategies.length > 0
+                ].filter(Boolean).length;
+
+                if (categoriesWithData <= 1) {
+                  // Show all strategies without tabs
+                  return (
+                    <div className="grid grid-cols-1 gap-6">
+                      {Object.entries(currentIntervalData.strategies).map(([name, strategy]) => (
+                        <StrategyCard
+                          key={name}
+                          summary={strategy.summary}
+                          strategyName={name}
+                          trades={strategy.trades}
+                          ticker={decodedTicker}
+                          assetType={assetType}
+                          thresholds={strategy.thresholds}
+                        />
+                      ))}
+                    </div>
+                  );
+                }
+
+                // Show tabs for multiple categories
+                return (
+                  <Tabs defaultValue={goldHandStrategies.length > 0 ? "ghl" : "rsi"} className="w-full">
+                    <TabsList className="grid w-full max-w-md" style={{ gridTemplateColumns: `repeat(${categoriesWithData}, 1fr)` }}>
+                      {goldHandStrategies.length > 0 && (
+                        <TabsTrigger value="ghl">Gold Hand Line ({goldHandStrategies.length})</TabsTrigger>
+                      )}
+                      {rsiStrategies.length > 0 && (
+                        <TabsTrigger value="rsi">RSI ({rsiStrategies.length})</TabsTrigger>
+                      )}
+                      {otherStrategies.length > 0 && (
+                        <TabsTrigger value="other">Other ({otherStrategies.length})</TabsTrigger>
+                      )}
+                    </TabsList>
+
+                    {goldHandStrategies.length > 0 && (
+                      <TabsContent value="ghl" className="space-y-6">
+                        {goldHandStrategies.map(([name, strategy]) => (
+                          <StrategyCard
+                            key={name}
+                            summary={strategy.summary}
+                            strategyName={name}
+                            trades={strategy.trades}
+                            ticker={decodedTicker}
+                            assetType={assetType}
+                            thresholds={strategy.thresholds}
+                          />
+                        ))}
+                      </TabsContent>
+                    )}
+
+                    {rsiStrategies.length > 0 && (
+                      <TabsContent value="rsi" className="space-y-6">
+                        {rsiStrategies.map(([name, strategy]) => (
+                          <StrategyCard
+                            key={name}
+                            summary={strategy.summary}
+                            strategyName={name}
+                            trades={strategy.trades}
+                            ticker={decodedTicker}
+                            assetType={assetType}
+                            thresholds={strategy.thresholds}
+                          />
+                        ))}
+                      </TabsContent>
+                    )}
+
+                    {otherStrategies.length > 0 && (
+                      <TabsContent value="other" className="space-y-6">
+                        {otherStrategies.map(([name, strategy]) => (
+                          <StrategyCard
+                            key={name}
+                            summary={strategy.summary}
+                            strategyName={name}
+                            trades={strategy.trades}
+                            ticker={decodedTicker}
+                            assetType={assetType}
+                            thresholds={strategy.thresholds}
+                          />
+                        ))}
+                      </TabsContent>
+                    )}
+                  </Tabs>
+                );
+              })()}
             </div>
           </>
         )}

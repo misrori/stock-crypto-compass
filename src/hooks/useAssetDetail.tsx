@@ -19,7 +19,7 @@ export interface StrategySummary {
   'average_res(%)': number;
   'average_trade_len(days)': number;
   'median_res(%)': number;
-  cumulative_result: number;
+  cumulative_result: string | number;
   trade_results: string;
   profitable_trade_results: string;
   profitable_trades_mean: number;
@@ -45,6 +45,7 @@ export interface StrategySummary {
 export interface Strategy {
   summary: StrategySummary;
   trades: StrategyTrade[];
+  thresholds?: (string | number)[];
 }
 
 export interface IntervalData {
@@ -97,9 +98,9 @@ export interface IntervalData {
     price_per_earning?: number;
     earnings_per_share_basic_ttm?: number;
     number_of_employees?: number;
+    tradingview_id?: string;
   };
   strategies: {
-    goldhand_line: Strategy;
     [key: string]: Strategy;
   };
 }
@@ -156,22 +157,10 @@ const COMMODITY_FILE_MAPPING: Record<string, string> = {
   'ZN=F': 'zinc',
 };
 
-const getAssetFolder = (assetType: AssetType): string => {
-  switch (assetType) {
-    case 'stocks':
-      return 'stocks';
-    case 'crypto':
-      return 'crypto';
-    case 'commodities':
-      return 'commodities';
-    default:
-      return 'stocks';
-  }
-};
-
 export const useAssetDetail = (
   ticker: string,
-  assetType: AssetType
+  assetType: AssetType,
+  timeframe: Timeframe = 'daily'
 ): UseAssetDetailResult => {
   const [data, setData] = useState<AssetDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -187,21 +176,12 @@ export const useAssetDetail = (
     setError(null);
 
     try {
-      const folder = getAssetFolder(assetType);
-
       // Determine the file name based on asset type
-      let fileName: string;
-      if (assetType === 'commodities') {
-        // Use the commodity file mapping
-        fileName = COMMODITY_FILE_MAPPING[ticker] || ticker.replace(/=F$/, '').toLowerCase();
-      } else if (assetType === 'crypto') {
-        // Convert ticker format: ETH-USD -> ETH_USD for file names
-        fileName = ticker.replace(/-/g, '_');
-      } else {
-        // Stocks use ticker directly
-        fileName = ticker;
-      }
+      // All asset types now use ticker directly as filename
+      const fileName = ticker;
 
+      // Use new folder structure: back_tests_daily or back_tests_weekly
+      const folder = timeframe === 'daily' ? 'back_tests_daily' : 'back_tests_weekly';
       const encodedFileName = encodeURIComponent(fileName);
       const url = `${GITHUB_BASE_URL}/${folder}/${encodedFileName}.json`;
 
@@ -214,14 +194,129 @@ export const useAssetDetail = (
       const textData = await response.text();
       // Replace NaN with null to handle invalid JSON
       const cleanedData = textData.replace(/:\s*NaN/g, ': null');
-      const jsonData: AssetDetail = JSON.parse(cleanedData);
-      setData(jsonData);
+      const jsonData = JSON.parse(cleanedData);
+
+      // Transform the new data format to match the expected AssetDetail interface
+      // The new format has summary_data and strategys at root level
+      const intervalData: IntervalData = {
+        interval: timeframe,
+        data_points: 0, // Not provided in new format
+        date_range: {
+          start: jsonData.summary_data?.date || '',
+          end: jsonData.summary_data?.date || '',
+        },
+        price_summary: {
+          first_open: jsonData.summary_data?.open || 0,
+          last_close: jsonData.summary_data?.close || 0,
+          min_low: jsonData.summary_data?.low || 0,
+          max_high: jsonData.summary_data?.high || 0,
+          total_return: 0, // Calculate if needed
+        },
+        indicators: {
+          latest_rsi: jsonData.summary_data?.rsi || 0,
+          latest_sma_50: jsonData.summary_data?.sma_50 || 0,
+          latest_sma_100: jsonData.summary_data?.sma_100 || 0,
+          latest_sma_200: jsonData.summary_data?.sma_200 || 0,
+          diff_from_sma_50: jsonData.summary_data?.diff_sma50 || 0,
+          diff_from_sma_100: jsonData.summary_data?.diff_sma100 || 0,
+          diff_from_sma_200: jsonData.summary_data?.diff_sma200 || 0,
+        },
+        extra_metrics: {
+          ghl_status: jsonData.summary_data?.ghl_status || '',
+          ghl_color: jsonData.summary_data?.ghl_color || 'grey',
+          ghl_last_change_date: jsonData.summary_data?.ghl_last_change_date || '',
+          ghl_days_since_last_change: jsonData.summary_data?.ghl_days_since_last_change || 0,
+          ghl_last_change_price: jsonData.summary_data?.ghl_last_change_price || 0,
+          ghl_change_percent_from_last_change: jsonData.summary_data?.ghl_change_percent_from_last_change || 0,
+          rsi_status: jsonData.summary_data?.rsi_status || '',
+          rsi_last_change_date: jsonData.summary_data?.rsi_last_change_date || '',
+          rsi_days_since_last_change: jsonData.summary_data?.rsi_days_since_last_change || 0,
+          rsi_last_change_price: jsonData.summary_data?.rsi_last_change_price || 0,
+          rsi_change_percent_from_last_change: jsonData.summary_data?.rsi_change_percent_from_last_change || 0,
+          last_max: jsonData.summary_data?.last_max || 0,
+          fell_from_last_max: jsonData.summary_data?.fell_from_last_max || 0,
+          last_local_min_date: jsonData.summary_data?.last_local_min_date || '',
+          last_local_min_price: jsonData.summary_data?.last_local_min_price || 0,
+          days_after_last_local_min: jsonData.summary_data?.days_after_last_local_min || 0,
+          percent_change_from_last_local_min: jsonData.summary_data?.percent_change_from_last_local_min || 0,
+          last_local_max_date: jsonData.summary_data?.last_local_max_date || '',
+          last_local_max_price: jsonData.summary_data?.last_local_max_price || 0,
+          days_after_last_local_max: jsonData.summary_data?.days_after_last_local_max || 0,
+          percent_fall_from_last_local_max: jsonData.summary_data?.percent_fall_from_last_local_max || 0,
+          sector: jsonData.summary_data?.sector,
+          industry: jsonData.summary_data?.industry,
+          price_per_earning: jsonData.summary_data?.price_per_earning,
+          earnings_per_share_basic_ttm: jsonData.summary_data?.earnings_per_share_basic_ttm,
+          number_of_employees: jsonData.summary_data?.number_of_employees,
+          tradingview_id: jsonData.summary_data?.tradingview_id,
+        },
+        strategies: {},
+      };
+
+      // Transform strategies from new format to old format
+      // New format: { goldhandline_strategys: [{thresholds: [...], trades: [...], trades_summary: {...}}], rsi_strategy: [...] }
+      // Old format: { strategy_name: { summary: {...}, trades: [...]}}
+      if (jsonData.strategys) {
+        // Process goldhandline strategies
+        if (Array.isArray(jsonData.strategys.goldhandline_strategys)) {
+          jsonData.strategys.goldhandline_strategys.forEach((strategy: any, index: number) => {
+            const strategyName = `goldhand_line_${strategy.thresholds?.join('_') || index}`;
+            intervalData.strategies[strategyName] = {
+              summary: strategy.trades_summary || {},
+              trades: strategy.trades || [],
+              thresholds: strategy.thresholds,
+            };
+          });
+        }
+
+        // Process RSI strategies
+        if (Array.isArray(jsonData.strategys.rsi_strategy)) {
+          jsonData.strategys.rsi_strategy.forEach((strategy: any, index: number) => {
+            const thresholds = strategy.thresholds || [];
+            const strategyName = `rsi_${thresholds.join('_') || index}`;
+            intervalData.strategies[strategyName] = {
+              summary: strategy.trades_summary || {},
+              trades: strategy.trades || [],
+              thresholds: strategy.thresholds,
+            };
+          });
+        }
+
+        // Process any other strategy arrays
+        Object.keys(jsonData.strategys).forEach((key) => {
+          if (key !== 'ticker' && key !== 'goldhandline_strategys' && key !== 'rsi_strategy') {
+            const strategies = jsonData.strategys[key];
+            if (Array.isArray(strategies)) {
+              strategies.forEach((strategy: any, index: number) => {
+                const thresholds = strategy.thresholds || [];
+                const strategyName = `${key}_${thresholds.join('_') || index}`;
+                intervalData.strategies[strategyName] = {
+                  summary: strategy.trades_summary || {},
+                  trades: strategy.trades || [],
+                  thresholds: strategy.thresholds,
+                };
+              });
+            }
+          }
+        });
+      }
+
+      const transformedData: AssetDetail = {
+        ticker: jsonData.summary_data?.ticker || ticker,
+        is_crypto: assetType === 'crypto',
+        collected_at: jsonData.summary_data?.date || new Date().toISOString(),
+        intervals: timeframe === 'daily'
+          ? { daily: intervalData }
+          : { daily: intervalData, weekly: intervalData }, // For weekly, we set both
+      };
+
+      setData(transformedData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch asset data');
     } finally {
       setLoading(false);
     }
-  }, [ticker, assetType]);
+  }, [ticker, assetType, timeframe]);
 
   useEffect(() => {
     fetchData();

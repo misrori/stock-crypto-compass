@@ -42,7 +42,10 @@ export function GlobalIdeaFeed() {
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {ideas.map((idea) => {
-                const isBullish = idea.bullish_probability > 50;
+                const sentimentValue = idea.sentiment ?? (idea.bullish_probability ?? 50);
+                const isBullish = sentimentValue > 50;
+                const targetPrice = idea.target_price ?? (isBullish ? idea.bullish_target_price : idea.bearish_target_price);
+
                 return (
                     <Card key={idea.id} className="bg-card/40 backdrop-blur-md border-border/50 rounded-2xl overflow-hidden hover:border-primary/20 transition-all flex flex-col">
                         <CardContent className="p-5 flex-1 flex flex-col gap-4">
@@ -63,6 +66,7 @@ export function GlobalIdeaFeed() {
                                 </div>
                                 <Badge variant="outline" className={`text-[8px] font-black uppercase tracking-tighter ${isBullish ? 'border-emerald-500/30 text-emerald-500' : 'border-rose-500/30 text-rose-500'}`}>
                                     {idea.asset_ticker} {isBullish ? <TrendingUp className="w-2 h-2 ml-1 inline" /> : <TrendingDown className="w-2 h-2 ml-1 inline" />}
+                                    <span className="ml-1 opacity-60">({sentimentValue}%)</span>
                                 </Badge>
                             </div>
 
@@ -74,11 +78,9 @@ export function GlobalIdeaFeed() {
 
                             <div className="flex justify-between items-end mt-auto pt-4 border-t border-border/20">
                                 <div className="flex flex-col">
-                                    <span className="text-[8px] font-black text-muted-foreground uppercase opacity-50">Target Range</span>
-                                    <span className="text-[11px] font-black">
-                                        <span className="text-rose-400">${idea.bearish_target_price.toLocaleString()}</span>
-                                        <span className="mx-1.5 opacity-20">/</span>
-                                        <span className="text-emerald-400">${idea.bullish_target_price.toLocaleString()}</span>
+                                    <span className="text-[8px] font-black text-muted-foreground uppercase opacity-50">7-Day Target</span>
+                                    <span className="text-[11px] font-black text-primary">
+                                        ${targetPrice?.toLocaleString() ?? 'N/A'}
                                     </span>
                                 </div>
                                 <div className="flex items-center gap-1.5 text-[10px] font-black uppercase text-primary/60">

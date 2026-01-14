@@ -17,14 +17,15 @@ export function useAllAssets() {
         setLoading(true);
         try {
             const fetchCSV = async (type: 'stocks' | 'crypto') => {
-                const res = await fetch(`${GITHUB_BASE_URL}/${type}_daily.csv`);
+                const fileName = type === 'stocks' ? 'stock_summary_df.csv' : 'crypto_summary_df.csv';
+                const res = await fetch(`${GITHUB_BASE_URL}/summary_data_daily/${fileName}`);
                 const text = await res.text();
                 const lines = text.trim().split('\n');
                 if (lines.length < 2) return [];
 
                 const headers = lines[0].split(',');
                 const tickerIdx = headers.indexOf('ticker');
-                const priceIdx = headers.indexOf('price_last_close');
+                const priceIdx = headers.indexOf('close');
 
                 return lines.slice(1).map(line => {
                     const values = line.split(',');

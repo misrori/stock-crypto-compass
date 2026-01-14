@@ -8,11 +8,11 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Profile from "./pages/Profile";
-import StockWatch from "./pages/StockWatch";
-import CryptoWatch from "./pages/CryptoWatch";
 import Scanner from "./pages/Scanner";
+import Screener from "./pages/Screener";
 import AssetDetail from "./pages/AssetDetail";
 import Predictions from "./pages/Predictions";
+import Watchlist from "./pages/Watchlist";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -29,10 +29,10 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/profile" element={<Profile />} />
-            <Route path="/stocks" element={<StockWatch />} />
-            <Route path="/crypto" element={<CryptoWatch />} />
             <Route path="/scanner" element={<Scanner />} />
+            <Route path="/screener" element={<Screener />} />
             <Route path="/scanner/:type/:ticker" element={<AssetDetail />} />
+            <Route path="/watchlist" element={<Watchlist />} />
             <Route path="/predictions" element={<Predictions />} />
             <Route path="*" element={<NotFound />} />
           </Routes>

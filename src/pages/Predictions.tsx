@@ -132,44 +132,51 @@ const Predictions = () => {
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                            {activePredictions.map((pred) => (
-                                <Card
-                                    key={pred.id}
-                                    className="group relative overflow-hidden border-border bg-card/40 backdrop-blur-md rounded-2xl border-2 hover:border-primary/20 transition-all cursor-pointer shadow-xl"
-                                    onClick={() => navigate(`/scanner/${pred.asset_type}/${encodeURIComponent(pred.asset_ticker)}`)}
-                                >
-                                    <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-accent/5 opacity-0 group-hover:opacity-100 transition-opacity" />
-                                    <CardHeader className="p-5 pb-2">
-                                        <div className="flex justify-between items-start">
-                                            <div className="space-y-1">
-                                                <Badge variant="outline" className="text-[8px] font-black tracking-widest uppercase border-primary/20 text-primary">{pred.asset_type}</Badge>
-                                                <CardTitle className="text-2xl font-black leading-none">{pred.asset_ticker}</CardTitle>
+                            {activePredictions.map((pred) => {
+                                const sentimentValue = pred.sentiment ?? (pred.bullish_probability ?? 50);
+                                const isBullish = sentimentValue > 50;
+                                const targetPrice = pred.target_price ?? (isBullish ? pred.bullish_target_price : pred.bearish_target_price);
+
+                                return (
+                                    <Card
+                                        key={pred.id}
+                                        className="group relative overflow-hidden border-border bg-card/40 backdrop-blur-md rounded-2xl border-2 hover:border-primary/20 transition-all cursor-pointer shadow-xl"
+                                        onClick={() => navigate(`/scanner/${pred.asset_type}/${encodeURIComponent(pred.asset_ticker)}`)}
+                                    >
+                                        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-accent/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                        <CardHeader className="p-5 pb-2">
+                                            <div className="flex justify-between items-start">
+                                                <div className="space-y-1">
+                                                    <Badge variant="outline" className="text-[8px] font-black tracking-widest uppercase border-primary/20 text-primary">{pred.asset_type}</Badge>
+                                                    <CardTitle className="text-2xl font-black leading-none">{pred.asset_ticker}</CardTitle>
+                                                </div>
+                                                <ExternalLink className="w-4 h-4 text-muted-foreground opacity-20 group-hover:opacity-100 transition-all" />
                                             </div>
-                                            <ExternalLink className="w-4 h-4 text-muted-foreground opacity-20 group-hover:opacity-100 transition-all" />
-                                        </div>
-                                    </CardHeader>
-                                    <CardContent className="p-5 pt-4 space-y-4">
-                                        <div className="flex justify-between items-end">
-                                            <div className="flex flex-col">
-                                                <span className="text-[9px] font-bold text-rose-500 uppercase">Bear</span>
-                                                <span className="text-lg font-black leading-tight">${pred.bearish_target_price.toLocaleString()}</span>
+                                        </CardHeader>
+                                        <CardContent className="p-5 pt-4 space-y-4">
+                                            <div className="flex justify-between items-end">
+                                                <div className="flex flex-col">
+                                                    <span className={`text-[9px] font-bold uppercase transition-colors ${isBullish ? 'text-emerald-500' : sentimentValue < 50 ? 'text-rose-500' : 'text-primary'}`}>
+                                                        {isBullish ? 'Bullish Target' : sentimentValue < 50 ? 'Bearish Target' : 'Neutral Target'}
+                                                    </span>
+                                                    <span className="text-2xl font-black leading-tight">${targetPrice?.toLocaleString()}</span>
+                                                </div>
+                                                <div className="flex flex-col items-end">
+                                                    <div className="w-16 h-1.5 rounded-full bg-muted/40 overflow-hidden flex mb-1 border border-border/20">
+                                                        <div className="bg-rose-500 transition-all duration-1000" style={{ width: `${100 - sentimentValue}%` }} />
+                                                        <div className="bg-emerald-500 transition-all duration-1000" style={{ width: `${sentimentValue}%` }} />
+                                                    </div>
+                                                    <span className="text-[10px] font-black text-muted-foreground">{sentimentValue}%</span>
+                                                </div>
                                             </div>
-                                            <div className="w-16 h-1 rounded-full bg-muted/30 overflow-hidden flex mx-2 mb-2">
-                                                <div className="bg-rose-500" style={{ width: `${pred.bearish_probability}%` }} />
-                                                <div className="bg-emerald-500" style={{ width: `${pred.bullish_probability}%` }} />
+                                            <div className="flex justify-between items-center text-[10px] font-bold py-2 border-t border-border/40">
+                                                <span className="text-muted-foreground uppercase tracking-widest">{formatDistanceToNow(new Date(pred.expires_at), { addSuffix: false })} left</span>
+                                                <div className={`h-1.5 w-1.5 rounded-full animate-pulse shadow-lg ${isBullish ? 'bg-emerald-500 shadow-emerald-500/50' : sentimentValue < 50 ? 'bg-rose-500 shadow-rose-500/50' : 'bg-primary shadow-primary/50'}`} />
                                             </div>
-                                            <div className="flex flex-col items-end">
-                                                <span className="text-[9px] font-bold text-emerald-500 uppercase">Bull</span>
-                                                <span className="text-lg font-black leading-tight">${pred.bullish_target_price.toLocaleString()}</span>
-                                            </div>
-                                        </div>
-                                        <div className="flex justify-between items-center text-[10px] font-bold py-2 border-t border-border/40">
-                                            <span className="text-muted-foreground uppercase tracking-widest">{formatDistanceToNow(new Date(pred.expires_at), { addSuffix: false })} left</span>
-                                            <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            ))}
+                                        </CardContent>
+                                    </Card>
+                                );
+                            })}
                         </div>
                     )}
                 </div>

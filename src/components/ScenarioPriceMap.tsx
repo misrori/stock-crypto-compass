@@ -30,32 +30,30 @@ export function ScenarioPriceMap({
 
         if (userActivePrediction) {
             items.push({
-                label: 'My Bull Target',
-                rel: findRelative(userActivePrediction.bullish_target_price),
+                label: 'My Target',
+                rel: findRelative(userActivePrediction.target_price),
                 type: 'user',
-                direction: 'bull'
-            });
-            items.push({
-                label: 'My Bear Target',
-                rel: findRelative(userActivePrediction.bearish_target_price),
-                type: 'user',
-                direction: 'bear'
+                direction: userActivePrediction.sentiment >= 50 ? 'bull' : 'bear'
             });
         }
 
         if (aggregatedData) {
-            items.push({
-                label: 'Crowd Bull Median',
-                rel: findRelative(aggregatedData.bullish_median_target),
-                type: 'crowd',
-                direction: 'bull'
-            });
-            items.push({
-                label: 'Crowd Bear Median',
-                rel: findRelative(aggregatedData.bearish_median_target),
-                type: 'crowd',
-                direction: 'bear'
-            });
+            if (aggregatedData.bullish_median_target > 0) {
+                items.push({
+                    label: 'Crowd Bull Median',
+                    rel: findRelative(aggregatedData.bullish_median_target),
+                    type: 'crowd',
+                    direction: 'bull'
+                });
+            }
+            if (aggregatedData.bearish_median_target > 0) {
+                items.push({
+                    label: 'Crowd Bear Median',
+                    rel: findRelative(aggregatedData.bearish_median_target),
+                    type: 'crowd',
+                    direction: 'bear'
+                });
+            }
         }
 
         // Find min/max for scale

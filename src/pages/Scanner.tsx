@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, RefreshCw, BarChart3, Bitcoin, Package, Target } from 'lucide-react';
+import { ArrowLeft, RefreshCw, BarChart3, Bitcoin, Package, Target, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -87,6 +87,15 @@ const Scanner = () => {
             </div>
 
             <div className="flex items-center gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate('/watchlist')}
+                className="gap-2 border-primary/20 hover:border-primary/50 text-primary"
+              >
+                <Star className="h-4 w-4" />
+                Watchlist
+              </Button>
               <Button
                 variant="outline"
                 size="sm"

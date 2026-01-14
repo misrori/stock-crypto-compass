@@ -3,9 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import type {
   ScenarioPrediction,
-  AggregatedScenarioData,
-  PredictionReasoning,
-  PredictionBucket
+  AggregatedScenarioData
 } from '@/types/prediction';
 
 interface UsePredictionsResult {
@@ -22,14 +20,9 @@ interface UsePredictionsResult {
 interface SubmitScenarioPredictionData {
   assetTicker: string;
   assetType: string;
-  bullishTarget: number;
-  bearishTarget: number;
-  bullishBucket: PredictionBucket;
-  bearishBucket: PredictionBucket;
-  bullishProbability: number;
-  bearishProbability: number;
-  riskScore: number;
-  reasoningTags: PredictionReasoning[];
+  sentiment: number;
+  targetPrice: number;
+  entryPrice: number;
   comment: string | null;
 }
 
@@ -55,7 +48,7 @@ export function usePredictions(assetTicker: string, assetType: string): UsePredi
 
       // Fetch user's history for this asset
       const { data: userPreds, error: userError } = await (supabase as any)
-        .from('scenario_predictions')
+        .from('market_predictions')
         .select('*')
         .eq('user_id', user.id)
         .eq('asset_ticker', assetTicker)
@@ -73,7 +66,7 @@ export function usePredictions(assetTicker: string, assetType: string): UsePredi
 
       // Fetch all active predictions for aggregation
       const { data: allPreds, error: allError } = await (supabase as any)
-        .from('scenario_predictions')
+        .from('market_predictions')
         .select('*')
         .eq('asset_ticker', assetTicker)
         .eq('asset_type', assetType)
@@ -100,53 +93,47 @@ export function usePredictions(assetTicker: string, assetType: string): UsePredi
     if (isLocked || allActivePredictions.length === 0) return null;
 
     const total = allActivePredictions.length;
-    let totalBullProb = 0;
-    let totalBearProb = 0;
-    let totalRisk = 0;
-    const bullTargets: number[] = [];
-    const bearTargets: number[] = [];
-    const bucketDist: Record<string, number> = {};
-    const reasoningDist: Record<string, number> = {};
+    let totalSentiment = 0;
+
+    const bullishTargets: number[] = [];
+    const bearishTargets: number[] = [];
 
     allActivePredictions.forEach(p => {
-      totalBullProb += p.bullish_probability;
-      totalBearProb += p.bearish_probability;
-      totalRisk += p.risk_score;
-      bullTargets.push(p.bullish_target_price);
-      bearTargets.push(p.bearish_target_price);
+      totalSentiment += p.sentiment;
 
-      bucketDist[p.bullish_bucket] = (bucketDist[p.bullish_bucket] || 0) + 1;
-      bucketDist[p.bearish_bucket] = (bucketDist[p.bearish_bucket] || 0) + 1;
-
-      p.reasoning_tags.forEach(tag => {
-        reasoningDist[tag] = (reasoningDist[tag] || 0) + 1;
-      });
+      if (p.sentiment > 50) {
+        bullishTargets.push(p.target_price);
+      } else if (p.sentiment < 50) {
+        bearishTargets.push(p.target_price);
+      } else {
+        bullishTargets.push(p.target_price);
+        bearishTargets.push(p.target_price);
+      }
     });
 
     const sortNumeric = (a: number, b: number) => a - b;
-    bullTargets.sort(sortNumeric);
-    bearTargets.sort(sortNumeric);
+    bullishTargets.sort(sortNumeric);
+    bearishTargets.sort(sortNumeric);
 
-    const getMedian = (arr: number[]) => arr[Math.floor(arr.length / 2)];
-    const getPercentile = (arr: number[], q: number) => arr[Math.floor(arr.length * q)];
+    const getMedian = (arr: number[]) => arr.length > 0 ? arr[Math.floor(arr.length / 2)] : 0;
+    const getPercentile = (arr: number[], q: number) => arr.length > 0 ? arr[Math.floor(arr.length * q)] : 0;
 
     return {
       total_active: total,
-      bullish_weight: totalBullProb / total,
-      bearish_weight: totalBearProb / total,
-      bullish_median_target: getMedian(bullTargets),
-      bearish_median_target: getMedian(bearTargets),
+      bullish_weight: totalSentiment / total,
+      bearish_weight: 100 - (totalSentiment / total),
+      bullish_median_target: getMedian(bullishTargets),
+      bearish_median_target: getMedian(bearishTargets),
       bullish_percentiles: {
-        p25: getPercentile(bullTargets, 0.25),
-        p75: getPercentile(bullTargets, 0.75)
+        p25: getPercentile(bullishTargets, 0.25),
+        p75: getPercentile(bullishTargets, 0.75)
       },
       bearish_percentiles: {
-        p25: getPercentile(bearTargets, 0.25),
-        p75: getPercentile(bearTargets, 0.75)
+        p25: getPercentile(bearishTargets, 0.25),
+        p75: getPercentile(bearishTargets, 0.75)
       },
-      bucket_distribution: bucketDist,
-      reasoning_breakdown: reasoningDist as Record<PredictionReasoning, number>,
-      avg_risk: totalRisk / total
+      reasoning_breakdown: {},
+      avg_risk: 0
     };
   };
 
@@ -158,19 +145,14 @@ export function usePredictions(assetTicker: string, assetType: string): UsePredi
 
     try {
       const { error: insertError } = await (supabase as any)
-        .from('scenario_predictions')
+        .from('market_predictions')
         .insert({
           user_id: user.id,
           asset_ticker: data.assetTicker,
           asset_type: data.assetType,
-          bullish_target_price: data.bullishTarget,
-          bearish_target_price: data.bearishTarget,
-          bullish_bucket: data.bullishBucket,
-          bearish_bucket: data.bearishBucket,
-          bullish_probability: data.bullishProbability,
-          bearish_probability: data.bearishProbability,
-          risk_score: data.riskScore,
-          reasoning_tags: data.reasoningTags,
+          sentiment: data.sentiment,
+          target_price: data.targetPrice,
+          entry_price: data.entryPrice,
           comment: data.comment,
           expires_at: expiresAt.toISOString(),
           is_active: true
