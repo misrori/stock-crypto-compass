@@ -4,20 +4,22 @@ import { ArrowLeft, Star, BarChart3, Bitcoin, Package } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { useAuth } from '@/hooks/useAuth';
 import { useWatchlist } from '@/hooks/useWatchlist';
-import { useGoldHandData, type AssetType } from '@/hooks/useGoldHandData';
+import { useGoldHandData, type AssetType, type Timeframe } from '@/hooks/useGoldHandData';
 import { ScannerTable } from '@/components/ScannerTable';
 
 const WatchlistPage = () => {
     const navigate = useNavigate();
     const { user, loading: authLoading } = useAuth();
     const { watchlist, loading: watchlistLoading } = useWatchlist();
+    const [timeframe, setTimeframe] = useState<Timeframe>('daily');
 
     // Fetch data for all types to filter by watchlist
-    const { data: stocksData, loading: stocksLoading } = useGoldHandData('stocks', 'daily', 'all', 'all');
-    const { data: cryptoData, loading: cryptoLoading } = useGoldHandData('crypto', 'daily', 'all', 'all');
-    const { data: commoditiesData, loading: commoditiesLoading } = useGoldHandData('commodities', 'daily', 'all', 'all');
+    const { data: stocksData, loading: stocksLoading } = useGoldHandData('stocks', timeframe, 'all', 'all');
+    const { data: cryptoData, loading: cryptoLoading } = useGoldHandData('crypto', timeframe, 'all', 'all');
+    const { data: commoditiesData, loading: commoditiesLoading } = useGoldHandData('commodities', timeframe, 'all', 'all');
 
     const isLoading = authLoading || watchlistLoading || stocksLoading || cryptoLoading || commoditiesLoading;
 
@@ -32,6 +34,30 @@ const WatchlistPage = () => {
             commodities: commoditiesData.filter(a => commodityTickers.includes(a.ticker))
         };
     }, [watchlist, stocksData, cryptoData, commoditiesData]);
+
+    const timeframeToggle = (
+        <ToggleGroup
+            type="single"
+            value={timeframe}
+            onValueChange={(value) => value && setTimeframe(value as Timeframe)}
+            className="bg-muted/30 p-1 rounded-lg border border-border/50 scale-90 origin-right"
+        >
+            <ToggleGroupItem
+                value="daily"
+                className="px-3 py-1 text-[10px] font-black uppercase tracking-widest data-[state=on]:bg-primary data-[state=on]:text-primary-foreground rounded-md transition-all"
+            >
+                Daily
+            </ToggleGroupItem>
+            <ToggleGroupItem
+                value="weekly"
+                className="px-3 py-1 text-[10px] font-black uppercase tracking-widest data-[state=on]:bg-primary data-[state=on]:text-primary-foreground rounded-md transition-all"
+            >
+                Weekly
+            </ToggleGroupItem>
+        </ToggleGroup>
+    );
+
+    let timeframeRendered = false;
 
     if (isLoading) {
         return (
@@ -89,14 +115,19 @@ const WatchlistPage = () => {
                         {/* Crypto Section */}
                         {filteredWatchlist.crypto.length > 0 && (
                             <section className="space-y-4">
-                                <div className="flex items-center gap-3">
-                                    <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-500">
-                                        <Bitcoin className="h-6 w-6" />
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-500">
+                                            <Bitcoin className="h-6 w-6" />
+                                        </div>
+                                        <h2 className="text-xl font-black uppercase tracking-tight">Crypto</h2>
+                                        <span className="text-xs font-bold text-muted-foreground/60 bg-muted/20 px-2 py-0.5 rounded-full">
+                                            {filteredWatchlist.crypto.length}
+                                        </span>
                                     </div>
-                                    <h2 className="text-xl font-black uppercase tracking-tight">Crypto</h2>
-                                    <span className="text-xs font-bold text-muted-foreground/60 bg-muted/20 px-2 py-0.5 rounded-full">
-                                        {filteredWatchlist.crypto.length}
-                                    </span>
+
+                                    {/* Global Timeframe Toggle */}
+                                    {!timeframeRendered && (timeframeRendered = true) && timeframeToggle}
                                 </div>
                                 <ScannerTable
                                     data={filteredWatchlist.crypto}
@@ -109,14 +140,18 @@ const WatchlistPage = () => {
                         {/* Stocks Section */}
                         {filteredWatchlist.stocks.length > 0 && (
                             <section className="space-y-4">
-                                <div className="flex items-center gap-3">
-                                    <div className="p-2 rounded-lg bg-blue-500/10 text-blue-500">
-                                        <BarChart3 className="h-6 w-6" />
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2 rounded-lg bg-blue-500/10 text-blue-500">
+                                            <BarChart3 className="h-6 w-6" />
+                                        </div>
+                                        <h2 className="text-xl font-black uppercase tracking-tight">Stocks</h2>
+                                        <span className="text-xs font-bold text-muted-foreground/60 bg-muted/20 px-2 py-0.5 rounded-full">
+                                            {filteredWatchlist.stocks.length}
+                                        </span>
                                     </div>
-                                    <h2 className="text-xl font-black uppercase tracking-tight">Stocks</h2>
-                                    <span className="text-xs font-bold text-muted-foreground/60 bg-muted/20 px-2 py-0.5 rounded-full">
-                                        {filteredWatchlist.stocks.length}
-                                    </span>
+
+                                    {!timeframeRendered && (timeframeRendered = true) && timeframeToggle}
                                 </div>
                                 <ScannerTable
                                     data={filteredWatchlist.stocks}
@@ -129,14 +164,18 @@ const WatchlistPage = () => {
                         {/* Commodities Section */}
                         {filteredWatchlist.commodities.length > 0 && (
                             <section className="space-y-4">
-                                <div className="flex items-center gap-3">
-                                    <div className="p-2 rounded-lg bg-amber-500/10 text-amber-500">
-                                        <Package className="h-6 w-6" />
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2 rounded-lg bg-amber-500/10 text-amber-500">
+                                            <Package className="h-6 w-6" />
+                                        </div>
+                                        <h2 className="text-xl font-black uppercase tracking-tight">Commodities</h2>
+                                        <span className="text-xs font-bold text-muted-foreground/60 bg-muted/20 px-2 py-0.5 rounded-full">
+                                            {filteredWatchlist.commodities.length}
+                                        </span>
                                     </div>
-                                    <h2 className="text-xl font-black uppercase tracking-tight">Commodities</h2>
-                                    <span className="text-xs font-bold text-muted-foreground/60 bg-muted/20 px-2 py-0.5 rounded-full">
-                                        {filteredWatchlist.commodities.length}
-                                    </span>
+
+                                    {!timeframeRendered && (timeframeRendered = true) && timeframeToggle}
                                 </div>
                                 <ScannerTable
                                     data={filteredWatchlist.commodities}

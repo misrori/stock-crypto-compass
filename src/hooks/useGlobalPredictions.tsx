@@ -24,7 +24,7 @@ export function useGlobalPredictions() {
 
             // Fetch ALL user predictions
             const { data, error: fetchError } = await (supabase as any)
-                .from('scenario_predictions')
+                .from('market_predictions')
                 .select('*')
                 .eq('user_id', user.id)
                 .order('created_at', { ascending: false });

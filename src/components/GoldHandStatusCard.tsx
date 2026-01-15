@@ -2,30 +2,22 @@ import { Sparkles, Clock, TrendingUp, TrendingDown, Activity } from 'lucide-reac
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { TrendBadge } from './TrendBadge';
 import type { IntervalData } from '@/hooks/useAssetDetail';
+import { formatPrice } from '@/lib/utils';
 
 interface GoldHandStatusCardProps {
   data: IntervalData;
   ticker: string;
 }
 
-const formatPrice = (price: number): string => {
-  if (price >= 1000) {
-    return `$${price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  } else if (price >= 1) {
-    return `$${price.toFixed(2)}`;
-  } else {
-    return `$${price.toFixed(6)}`;
-  }
-};
 
 const formatDays = (days: number): string => {
   if (days === 0) return 'Today';
   if (days === 1) return '1 day';
   if (days < 7) return `${days} days`;
-  
+
   const weeks = Math.floor(days / 7);
   if (weeks < 4) return `${weeks} week${weeks > 1 ? 's' : ''}`;
-  
+
   const months = Math.floor(days / 30);
   return `${months} month${months > 1 ? 's' : ''}`;
 };
@@ -34,7 +26,7 @@ export const GoldHandStatusCard = ({ data, ticker }: GoldHandStatusCardProps) =>
   const { extra_metrics, price_summary } = data;
   const ghlColor = extra_metrics.ghl_color.toLowerCase() as 'gold' | 'blue' | 'grey' | 'gray';
   const normalizedColor = ghlColor === 'gray' ? 'grey' : ghlColor;
-  
+
   const getStatusText = (color: string) => {
     switch (color) {
       case 'gold':
@@ -84,8 +76,8 @@ export const GoldHandStatusCard = ({ data, ticker }: GoldHandStatusCardProps) =>
           <div className="flex items-center justify-between mt-2 text-sm">
             <span className="text-muted-foreground">Total Return</span>
             <span className={`font-bold ${price_summary.total_return >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-              {price_summary.total_return >= 100 
-                ? `${(price_summary.total_return / 100).toFixed(0)}x` 
+              {price_summary.total_return >= 100
+                ? `${(price_summary.total_return / 100).toFixed(0)}x`
                 : `${price_summary.total_return.toFixed(2)}%`
               }
             </span>
@@ -124,11 +116,10 @@ export const GoldHandStatusCard = ({ data, ticker }: GoldHandStatusCardProps) =>
             </h4>
             <div className="space-y-2 text-sm">
               <div className="flex items-center gap-2">
-                <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                  extra_metrics.rsi_status === 'open' 
-                    ? 'bg-emerald-500/20 text-emerald-400' 
+                <span className={`px-2 py-0.5 rounded text-xs font-medium ${extra_metrics.rsi_status === 'open'
+                    ? 'bg-emerald-500/20 text-emerald-400'
                     : 'bg-rose-500/20 text-rose-400'
-                }`}>
+                  }`}>
                   {extra_metrics.rsi_status.toUpperCase()}
                 </span>
               </div>

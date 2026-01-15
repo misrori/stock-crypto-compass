@@ -21,6 +21,7 @@ import {
     TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { type ScenarioPrediction } from '@/types/prediction';
+import { formatPrice } from '@/lib/utils';
 
 interface ScenarioPredictionFormProps {
     assetTicker: string;
@@ -110,7 +111,7 @@ export function ScenarioPredictionForm({
                                 <History className="w-3 h-3" /> My Forecast
                             </div>
                             <div className={`text-2xl font-black tracking-tighter ${pTarget >= activePrediction.entry_price ? 'text-emerald-500' : 'text-rose-500'}`}>
-                                ${pTarget.toLocaleString()}
+                                {formatPrice(pTarget)}
                             </div>
                             <div className="text-[10px] font-bold opacity-60">
                                 {pDiff > 0 ? '+' : ''}{pDiff.toFixed(2)}% EXPECTED
@@ -137,7 +138,7 @@ export function ScenarioPredictionForm({
                         </div>
                         <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mt-3">
                             Current Sentiment: <span className={pSentiment > 50 ? 'text-emerald-500' : pSentiment < 50 ? 'text-rose-500' : 'text-primary'}>
-                                {pSentiment}% {pSentiment > 50 ? 'Bullish' : pSentiment < 50 ? 'Bearish' : 'Neutral'}
+                                {pSentiment > 50 ? `${pSentiment}% Bullish` : pSentiment < 50 ? `${100 - pSentiment}% Bearish` : '50% Neutral'}
                             </span>
                         </p>
                     </div>
@@ -236,7 +237,7 @@ export function ScenarioPredictionForm({
                         <Label className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground/60 mb-1">7-Day Price Target</Label>
                         <div className="text-right">
                             <div className={`text-4xl font-black tracking-tighter transition-all duration-500 ${isBullish ? 'text-emerald-500 drop-shadow-[0_0_15px_rgba(16,185,129,0.3)]' : isBearish ? 'text-rose-500 drop-shadow-[0_0_15px_rgba(244,63,94,0.3)]' : 'text-muted-foreground/60'}`}>
-                                ${targetPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                {formatPrice(targetPrice)}
                             </div>
                             <div className={`text-[9px] font-black tracking-widest mt-1 uppercase ${isBullish ? 'text-emerald-500/80' : isBearish ? 'text-rose-500/80' : 'text-muted-foreground/60'}`}>
                                 {targetPrice >= currentPrice ? '+' : ''}{((targetPrice / currentPrice - 1) * 100).toFixed(2)}% FROM NOW
@@ -254,8 +255,8 @@ export function ScenarioPredictionForm({
                             className={`radiant-slider ${isBullish ? 'accent-emerald' : isBearish ? 'accent-rose' : ''}`}
                         />
                         <div className="flex justify-between mt-3 text-[8px] font-black text-muted-foreground/40 uppercase tracking-widest px-1">
-                            <span>{isBullish ? 'Now' : `$${minPrice.toFixed(2)}`}</span>
-                            <span className={isBearish ? 'text-rose-500/60' : isBullish ? 'text-emerald-500/60' : ''}>{isBearish ? 'Now' : `$${maxPrice.toFixed(2)}`}</span>
+                            <span>{isBullish ? 'Now' : formatPrice(minPrice)}</span>
+                            <span className={isBearish ? 'text-rose-500/60' : isBullish ? 'text-emerald-500/60' : ''}>{isBearish ? 'Now' : formatPrice(maxPrice)}</span>
                         </div>
                     </div>
                 </div>

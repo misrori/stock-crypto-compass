@@ -1,20 +1,12 @@
 import { Activity, TrendingUp, TrendingDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { IntervalData } from '@/hooks/useAssetDetail';
+import { formatPrice } from '@/lib/utils';
 
 interface IndicatorsCardProps {
   data: IntervalData;
 }
 
-const formatPrice = (price: number): string => {
-  if (price >= 1000) {
-    return `$${price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  } else if (price >= 1) {
-    return `$${price.toFixed(2)}`;
-  } else {
-    return `$${price.toFixed(6)}`;
-  }
-};
 
 const formatPercent = (value: number): string => {
   return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
@@ -23,7 +15,7 @@ const formatPercent = (value: number): string => {
 export const IndicatorsCard = ({ data }: IndicatorsCardProps) => {
   const { indicators, extra_metrics, price_summary } = data;
   const rsi = indicators.latest_rsi;
-  
+
   const getRSIColor = (rsi: number) => {
     if (rsi >= 70) return 'text-rose-400';
     if (rsi <= 30) return 'text-emerald-400';
@@ -54,10 +46,9 @@ export const IndicatorsCard = ({ data }: IndicatorsCardProps) => {
             </span>
           </div>
           <div className="w-full bg-muted rounded-full h-2">
-            <div 
-              className={`h-2 rounded-full transition-all ${
-                rsi >= 70 ? 'bg-rose-400' : rsi <= 30 ? 'bg-emerald-400' : 'bg-yellow-400'
-              }`}
+            <div
+              className={`h-2 rounded-full transition-all ${rsi >= 70 ? 'bg-rose-400' : rsi <= 30 ? 'bg-emerald-400' : 'bg-yellow-400'
+                }`}
               style={{ width: `${Math.min(100, rsi)}%` }}
             />
           </div>
@@ -67,7 +58,7 @@ export const IndicatorsCard = ({ data }: IndicatorsCardProps) => {
         {/* SMAs */}
         <div className="space-y-2">
           <h4 className="text-sm font-medium text-muted-foreground">Moving Averages</h4>
-          
+
           <div className="grid grid-cols-1 gap-2">
             <div className="flex items-center justify-between py-2 border-b border-border/50">
               <span className="text-sm">SMA 50</span>
@@ -78,7 +69,7 @@ export const IndicatorsCard = ({ data }: IndicatorsCardProps) => {
                 </span>
               </div>
             </div>
-            
+
             <div className="flex items-center justify-between py-2 border-b border-border/50">
               <span className="text-sm">SMA 100</span>
               <div className="flex items-center gap-2">
@@ -88,7 +79,7 @@ export const IndicatorsCard = ({ data }: IndicatorsCardProps) => {
                 </span>
               </div>
             </div>
-            
+
             <div className="flex items-center justify-between py-2">
               <span className="text-sm">SMA 200</span>
               <div className="flex items-center gap-2">
@@ -110,7 +101,7 @@ export const IndicatorsCard = ({ data }: IndicatorsCardProps) => {
             </div>
             <p className="font-mono font-bold">{formatPrice(price_summary.max_high)}</p>
           </div>
-          
+
           <div className="bg-rose-500/10 rounded-lg p-3">
             <div className="flex items-center gap-1 text-rose-400 text-xs mb-1">
               <ArrowDown className="h-3 w-3" />
@@ -123,7 +114,7 @@ export const IndicatorsCard = ({ data }: IndicatorsCardProps) => {
         {/* Local extremes */}
         <div className="space-y-2 text-sm">
           <h4 className="font-medium text-muted-foreground">Recent Extremes</h4>
-          
+
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-emerald-400" />
@@ -136,7 +127,7 @@ export const IndicatorsCard = ({ data }: IndicatorsCardProps) => {
               </p>
             </div>
           </div>
-          
+
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <TrendingDown className="h-4 w-4 text-rose-400" />

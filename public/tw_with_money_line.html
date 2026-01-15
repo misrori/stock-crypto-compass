@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Goldhand Terminal - AI StepTrend PRO Edition</title>
+  
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  
+  <script src="https://unpkg.com/lightweight-charts@4.1.1/dist/lightweight-charts.standalone.production.js"></script>
+
+  <style>
+    /* ALAPOK */
+    body {
+      margin: 0;
+      height: 100vh;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: #ffffff; 
+      color: #333;
+    }
+    
+    .app-container {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+
+    /* TOOLBAR */
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 15px;
+      align-items: center;
+      background: #f8f9fa;
+      padding: 8px 15px;
+      border-bottom: 1px solid #e0e0e0;
+      flex-shrink: 0;
+      z-index: 50;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    }
+
+    .group {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding-right: 15px;
+      border-right: 1px solid #ddd;
+    }
+    .group:last-child { border-right: none; }
+    
+    .label { font-size: 10px; color: #888; font-weight: 700; margin-right: 5px; letter-spacing: 0.5px; }
+
+    /* VEZÉRLŐK */
+    select {
+      background: #fff;
+      color: #333;
+      border: 1px solid #ccc;
+      padding: 4px 8px;
+      border-radius: 4px;
+      outline: none;
+      cursor: pointer;
+      font-size: 12px;
+    }
+
+    button {
+      background: transparent;
+      color: #555;
+      border: 1px solid transparent;
+      padding: 5px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+    button:hover { background: #e9ecef; color: #000; }
+    button.active { background: #2962ff; color: #fff; }
+    button.toggle-on { color: #2962ff; background: rgba(41, 98, 255, 0.1); border: 1px solid rgba(41, 98, 255, 0.3); }
+    
+    button.gold-btn.toggle-on { 
+        color: #d8a000; 
+        background: rgba(255, 192, 0, 0.15); 
+        border: 1px solid rgba(255, 192, 0, 0.5);
+    }
+    
+    button.step-btn.toggle-on { 
+        color: #2e7d32; 
+        background: rgba(46, 125, 50, 0.1); 
+        border: 1px solid rgba(46, 125, 50, 0.4);
+    }
+
+    /* CHART WRAPPER */
+    .chart-wrapper {
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      background-color: #ffffff; 
+    }
+
+    .main-chart { 
+        flex-grow: 1; 
+        width: 100%; 
+        min-height: 0; 
+        z-index: 2; 
+        position: relative;
+        background-image: url('https://i.ibb.co/TMdGbqfK/hattergh.png');
+        background-repeat: no-repeat;
+        background-position: center center;
+        background-size: auto;
+    }
+    
+    .indicator-chart { 
+        height: 140px; 
+        width: 100%; 
+        border-top: 1px solid #e0e0e0; 
+        flex-shrink: 0; 
+        z-index: 2; 
+        background: #ffffff; 
+    }
+    
+    .loading {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(255,255,255,0.9);
+      display: flex; justify-content: center; align-items: center;
+      z-index: 100; font-size: 14px; color: #333; letter-spacing: 1px;
+    }
+
+    /* VPVR */
+    .vp-container {
+        position: absolute;
+        top: 0;
+        right: 60px;
+        width: 160px;
+        height: 100%;
+        pointer-events: none;
+        z-index: 1;
+        opacity: 0.95; 
+        display: flex;
+        flex-direction: column;
+    }
+    .vp-bar {
+        position: absolute;
+        right: 0;
+        height: 3px; 
+        background: rgba(21, 101, 192, 0.65); 
+        border-left: 1px solid rgba(255,255,255,0.5);
+        transition: width 0.2s ease-out;
+        margin-bottom: 1px;
+    }
+    .vp-poc { 
+        background: rgba(255, 61, 0, 0.85) !important; 
+        border-left: 1px solid rgba(255, 61, 0, 1);
+        z-index: 5;
+    }
+
+  </style>
+</head>
+<body>
+
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef, useCallback } = React;
+    const { createChart, LineStyle, CrosshairMode, ColorType } = LightweightCharts;
+
+    // --- MATH ---
+    
+    const calculateATR = (data, period) => {
+        const atr = [];
+        let sumTR = 0;
+        for (let i = 0; i < data.length; i++) {
+            if (i === 0) {
+                atr.push(NaN);
+                continue;
+            }
+            const tr = Math.max(
+                data[i].high - data[i].low,
+                Math.abs(data[i].high - data[i - 1].close),
+                Math.abs(data[i].low - data[i - 1].close)
+            );
+            if (i < period) {
+                sumTR += tr;
+                atr.push(NaN);
+            } else if (i === period) {
+                sumTR += tr;
+                atr.push(sumTR / period);
+            } else {
+                atr.push((atr[i - 1] * (period - 1) + tr) / period);
+            }
+        }
+        return atr;
+    };
+
+    /**
+     * AI StepTrend PRO (Lazy Follow) LOGIKA
+     * A Pine Script logika átültetése JavaScriptre.
+     */
+    const calculateStepTrend = (data, period = 14, mult = 3.0, stepFactor = 0.6) => {
+        const atr = calculateATR(data, period);
+        const lineData = [];
+        const fillData = [];
+        const markers = [];
+        
+        let trendDir = 1; 
+        let trendLine = data[0] ? data[0].close : 0;
+        const results = []; 
+
+        for (let i = 0; i < data.length; i++) {
+            const close = data[i].close;
+            const currentAtr = atr[i];
+
+            if (isNaN(currentAtr)) {
+                results.push({ val: NaN, dir: trendDir });
+                continue;
+            }
+
+            const longStop = close - (currentAtr * mult);
+            const shortStop = close + (currentAtr * mult);
+            const prevTrendLine = i > 0 && !isNaN(results[i-1].val) ? results[i-1].val : close;
+
+            if (trendDir === 1) { // BULLISH
+                if (close < prevTrendLine) {
+                    trendDir = -1;
+                    trendLine = shortStop;
+                } else {
+                    // Lazy Follow: potentialRise = math.max(longStop, nz(trendLine[1]))
+                    const potentialRise = Math.max(longStop, prevTrendLine);
+                    if (potentialRise > prevTrendLine) {
+                        trendLine = prevTrendLine + (potentialRise - prevTrendLine) * stepFactor;
+                    } else {
+                        trendLine = prevTrendLine;
+                    }
+                }
+            } else { // BEARISH
+                if (close > prevTrendLine) {
+                    trendDir = 1;
+                    trendLine = longStop;
+                } else {
+                    // Lazy Follow: potentialDrop = math.min(shortStop, nz(trendLine[1]))
+                    const potentialDrop = Math.min(shortStop, prevTrendLine);
+                    if (potentialDrop < prevTrendLine) {
+                        trendLine = prevTrendLine - (prevTrendLine - potentialDrop) * stepFactor;
+                    } else {
+                        trendLine = prevTrendLine;
+                    }
+                }
+            }
+            results.push({ val: trendLine, dir: trendDir });
+        }
+
+        for (let i = 0; i < data.length; i++) {
+            const current = results[i];
+            const isBullish = current.dir === 1;
+            let segmentColor = isBullish ? '#2e7d32' : '#c62828';
+
+            // Megszakadás kezelése a váltásoknál
+            if (i < results.length - 1) {
+                const next = results[i + 1];
+                if (next.dir !== current.dir) {
+                    segmentColor = 'transparent'; 
+                }
+            }
+
+            lineData.push({ 
+                time: data[i].time, 
+                value: current.val, 
+                color: segmentColor 
+            });
+            
+            fillData.push({
+                time: data[i].time,
+                open: current.val,
+                high: Math.max(current.val, data[i].close),
+                low: Math.min(current.val, data[i].close),
+                close: data[i].close,
+                color: isBullish ? 'rgba(46, 125, 50, 0.15)' : 'rgba(198, 40, 40, 0.15)'
+            });
+
+            // Trendváltás jelzők (Markers)
+            if (i > 0 && results[i-1].val !== NaN && current.dir !== results[i-1].dir) {
+                markers.push({
+                    time: data[i].time,
+                    position: isBullish ? 'belowBar' : 'aboveBar',
+                    color: isBullish ? '#2e7d32' : '#c62828',
+                    shape: isBullish ? 'arrowUp' : 'arrowDown',
+                    text: isBullish ? 'VÉTEL' : 'ELADÁS'
+                });
+            }
+        }
+        return { lineData, fillData, markers };
+    };
+
+    const calculateSMA = (data, period) => {
+      const result = [];
+      for (let i = 0; i < data.length; i++) {
+        if (i < period - 1) { result.push({ time: data[i].time, value: NaN }); continue; }
+        let sum = 0;
+        for (let j = 0; j < period; j++) sum += data[i - j].close;
+        result.push({ time: data[i].time, value: sum / period });
+      }
+      return result;
+    };
+
+    const calculateRSI = (data, period = 14) => {
+      const result = [];
+      let avgGain = 0, avgLoss = 0;
+      for (let i = 1; i < data.length; i++) {
+        const change = data[i].close - data[i - 1].close;
+        const gain = change > 0 ? change : 0;
+        const loss = change < 0 ? Math.abs(change) : 0;
+        if (i <= period) {
+          avgGain += gain; avgLoss += loss;
+          if (i === period) {
+            avgGain /= period; avgLoss /= period;
+            result.push({ time: data[i].time, value: 100 - 100 / (1 + (avgGain/avgLoss)) });
+          } else { result.push({ time: data[i].time, value: NaN }); }
+        } else {
+          avgGain = (avgGain * (period - 1) + gain) / period;
+          avgLoss = (avgLoss * (period - 1) + loss) / period;
+          result.push({ time: data[i].time, value: 100 - 100 / (1 + (avgGain/avgLoss)) });
+        }
+      }
+      return result;
+    };
+
+    const calculateMACD = (data, fastPeriod = 12, slowPeriod = 26, signalPeriod = 9) => {
+        const getEMA = (values, period) => {
+            const result = new Array(values.length).fill(NaN);
+            let firstValidIdx = -1;
+            for(let i=0; i<values.length; i++) { if(!isNaN(values[i])) { firstValidIdx = i; break; } }
+            if (firstValidIdx === -1 || values.length - firstValidIdx < period) return result;
+            let sum = 0;
+            for(let i=firstValidIdx; i < firstValidIdx + period; i++) sum += values[i];
+            let ema = sum / period;
+            result[firstValidIdx + period - 1] = ema;
+            const k = 2 / (period + 1);
+            for(let i=firstValidIdx + period; i < values.length; i++) {
+                if(isNaN(values[i])) { result[i] = NaN; } 
+                else { ema = (values[i] - ema) * k + ema; result[i] = ema; }
+            }
+            return result;
+        };
+        const closes = data.map(d => d.close);
+        const fastEMA = getEMA(closes, fastPeriod);
+        const slowEMA = getEMA(closes, slowPeriod);
+        const macdLine = [];
+        const macdSeriesData = [];
+        const signalSeriesData = [];
+        const histSeriesData = [];
+        for(let i=0; i<data.length; i++) {
+            let val = NaN;
+            if(!isNaN(fastEMA[i]) && !isNaN(slowEMA[i])) { val = fastEMA[i] - slowEMA[i]; }
+            macdLine.push(val);
+        }
+        const signalLine = getEMA(macdLine, signalPeriod);
+        for(let i=0; i<data.length; i++) {
+            const time = data[i].time;
+            const macd = macdLine[i];
+            const sig = signalLine[i];
+            let hist = NaN;
+            let histColor = '#26a69a'; 
+            if (!isNaN(macd) && !isNaN(sig)) {
+                hist = macd - sig;
+                histColor = hist >= 0 ? '#26a69a' : '#ef5350';
+            }
+            macdSeriesData.push({ time, value: macd });
+            signalSeriesData.push({ time, value: sig });
+            histSeriesData.push({ time, value: hist, color: histColor });
+        }
+        return { macdSeriesData, signalSeriesData, histSeriesData };
+    };
+
+    const calculateGoldhand = (candles) => {
+        const calculateSMMA = (values, length) => {
+            const smma = new Array(values.length).fill(NaN);
+            let sum = 0;
+            for(let i = 0; i < length; i++) sum += values[i];
+            smma[length-1] = sum / length;
+            for(let i = length; i < values.length; i++) {
+                smma[i] = (smma[i-1] * (length - 1) + values[i]) / length;
+            }
+            return smma;
+        };
+        const hl2 = candles.map(c => (c.high + c.low) / 2);
+        const v1 = calculateSMMA(hl2, 15);
+        const v2 = calculateSMMA(hl2, 19);
+        const v3 = calculateSMMA(hl2, 25);
+        const v4 = calculateSMMA(hl2, 29);
+        const line1Data = []; const line2Data = []; const fillData = [];  
+        for(let i = 0; i < candles.length; i++) {
+            if(isNaN(v4[i])) continue;
+            const val1 = v1[i]; const val2 = v4[i]; 
+            const bullish = (v1[i] > v2[i]) && (v2[i] > v3[i]) && (v3[i] > v4[i]);
+            const bearish = (v1[i] < v2[i]) && (v2[i] < v3[i]) && (v3[i] < v4[i]);
+            let lineColor = '#999'; let fillColor = 'rgba(200, 200, 200, 0.2)'; 
+            if (bullish) { lineColor = '#F57F17'; fillColor = 'rgba(255, 192, 0, 0.3)'; }
+            if (bearish) { lineColor = '#1565C0'; fillColor = 'rgba(21, 101, 192, 0.3)'; }
+            const time = candles[i].time;
+            line1Data.push({ time: time, value: val1, color: lineColor });
+            line2Data.push({ time: time, value: val2, color: lineColor });
+            fillData.push({ time: time, open: val1, high: Math.max(val1, val2), low: Math.min(val1, val2), close: val2, color: fillColor });
+        }
+        return { line1Data, line2Data, fillData };
+    };
+
+    const App = () => {
+      const [symbol, setSymbol] = useState('AAPL');
+      const [interval, setInterval] = useState('1d');
+      const [loading, setLoading] = useState(false);
+      
+      const [showSMA, setShowSMA] = useState(true);
+      const [showRSI, setShowRSI] = useState(true);
+      const [showGold, setShowGold] = useState(true);
+      const [showStep, setShowStep] = useState(true); 
+      const [showVol, setShowVol] = useState(true);
+      const [showVP, setShowVP] = useState(true);
+      const [showMACD, setShowMACD] = useState(true);
+      
+      const [vpElements, setVpElements] = useState([]);
+      
+      const mainRef = useRef(null);
+      const rsiRef = useRef(null);
+      const macdRef = useRef(null); 
+
+      const chart = useRef(null);
+      const rsiChart = useRef(null);
+      const macdChart = useRef(null); 
+      
+      const candleSeries = useRef(null);
+      const volumeSeries = useRef(null);
+      const sma50 = useRef(null);
+      const sma200 = useRef(null);
+      const goldFillSeries = useRef(null);
+      const gold1 = useRef(null);
+      const gold2 = useRef(null);
+
+      const stepSeries = useRef(null);
+      const stepFillSeries = useRef(null);
+      
+      const rsiLine = useRef(null);
+      const macdHistSeries = useRef(null);
+      const macdLineSeries = useRef(null);
+      const signalLineSeries = useRef(null);
+
+      const allDataRef = useRef([]);
+
+      useEffect(() => {
+        chart.current = createChart(mainRef.current, {
+          layout: { background: { type: ColorType.Solid, color: 'transparent' }, textColor: '#191919' },
+          grid: { vertLines: { color: '#e1e1e1' }, horzLines: { color: '#e1e1e1' } },
+          width: mainRef.current.clientWidth,
+          height: 950,
+          crosshair: { mode: CrosshairMode.Normal },
+          timeScale: { borderColor: '#ccc', timeVisible: true },
+          rightPriceScale: { borderColor: '#ccc' }
+        });
+
+        volumeSeries.current = chart.current.addHistogramSeries({
+            color: '#26a69a',
+            priceFormat: { type: 'volume' },
+            priceScaleId: '',
+            scaleMargins: { top: 0.8, bottom: 0 },
+        });
+
+        stepFillSeries.current = chart.current.addBarSeries({ 
+            thinBars: false, openVisible: false, downColor: 'transparent', upColor: 'transparent',
+            priceLineVisible: false, lastValueVisible: false
+        });
+        stepSeries.current = chart.current.addLineSeries({ lineWidth: 3, title: 'MoneyLine', lastValueVisible: false, priceLineVisible: false });
+
+        goldFillSeries.current = chart.current.addBarSeries({ thinBars: false, openVisible: false, downColor: 'transparent', upColor: 'transparent' });
+        candleSeries.current = chart.current.addCandlestickSeries({ upColor: '#00796b', downColor: '#d32f2f', borderVisible: false, wickUpColor: '#00796b', wickDownColor: '#d32f2f' });
+        sma50.current = chart.current.addLineSeries({ color: '#2962ff', lineWidth: 1, title: 'SMA 50' });
+        sma200.current = chart.current.addLineSeries({ color: '#ff6d00', lineWidth: 1, title: 'SMA 200' });
+        gold1.current = chart.current.addLineSeries({ lineWidth: 2, title: 'Gold High' });
+        gold2.current = chart.current.addLineSeries({ lineWidth: 2, title: 'Gold Low' });
+
+        rsiChart.current = createChart(rsiRef.current, {
+          layout: { background: { type: ColorType.Solid, color: '#ffffff' }, textColor: '#191919' },
+          grid: { vertLines: { color: '#f0f0f0' }, horzLines: { color: '#f0f0f0' } },
+          width: rsiRef.current.clientWidth,
+          height: 140,
+          timeScale: { visible: false },
+          crosshair: { mode: CrosshairMode.Normal },
+        });
+        rsiLine.current = rsiChart.current.addLineSeries({ color: '#7b1fa2', lineWidth: 2 });
+        rsiLine.current.createPriceLine({ price: 70, color: '#888', lineWidth: 1, lineStyle: LineStyle.Dashed });
+        rsiLine.current.createPriceLine({ price: 30, color: '#888', lineWidth: 1, lineStyle: LineStyle.Dashed });
+
+        macdChart.current = createChart(macdRef.current, {
+          layout: { background: { type: ColorType.Solid, color: '#ffffff' }, textColor: '#191919' },
+          grid: { vertLines: { color: '#f0f0f0' }, horzLines: { color: '#f0f0f0' } },
+          width: macdRef.current.clientWidth,
+          height: 140,
+          timeScale: { visible: false },
+          crosshair: { mode: CrosshairMode.Normal },
+        });
+        macdHistSeries.current = macdChart.current.addHistogramSeries({ color: '#26a69a' });
+        macdLineSeries.current = macdChart.current.addLineSeries({ color: '#2962FF', lineWidth: 2, title: 'MACD' });
+        signalLineSeries.current = macdChart.current.addLineSeries({ color: '#FF6D00', lineWidth: 2, title: 'Signal' });
+
+        const charts = [
+            { chart: chart.current, series: candleSeries.current }, 
+            { chart: rsiChart.current, series: rsiLine.current }, 
+            { chart: macdChart.current, series: macdLineSeries.current }
+        ];
+        charts.forEach(c => {
+            c.chart.timeScale().subscribeVisibleLogicalRangeChange(range => {
+                if (range) {
+                    charts.forEach(other => { if (other.chart !== c.chart) other.chart.timeScale().setVisibleLogicalRange(range); });
+                    if (c.chart === chart.current) updateVolumeProfile();
+                }
+            });
+            c.chart.subscribeCrosshairMove(param => {
+                if (!param.time || param.point === undefined) {
+                    charts.forEach(other => { if (other.chart !== c.chart) other.chart.clearCrosshairPosition(); });
+                    return;
+                }
+                charts.forEach(other => { if (other.chart !== c.chart) other.chart.setCrosshairPosition(0, param.time, other.series); });
+            });
+        });
+
+        const handleResize = () => {
+          if(chart.current) chart.current.applyOptions({ width: mainRef.current.clientWidth });
+          if(rsiChart.current) rsiChart.current.applyOptions({ width: rsiRef.current.clientWidth });
+          if(macdChart.current) macdChart.current.applyOptions({ width: macdRef.current.clientWidth });
+          updateVolumeProfile();
+        };
+        window.addEventListener('resize', handleResize);
+        return () => {
+            window.removeEventListener('resize', handleResize);
+            chart.current.remove(); rsiChart.current.remove(); macdChart.current.remove();
+        }
+      }, []);
+
+      const updateVolumeProfile = useCallback(() => {
+          if (!chart.current || !candleSeries.current || !showVP || allDataRef.current.length === 0) { setVpElements([]); return; }
+          const visibleRange = chart.current.timeScale().getVisibleLogicalRange();
+          if (!visibleRange) return;
+          const startIdx = Math.max(0, Math.floor(visibleRange.from));
+          const endIdx = Math.min(allDataRef.current.length - 1, Math.ceil(visibleRange.to));
+          const visibleData = [];
+          for(let i = startIdx; i <= endIdx; i++) { if (allDataRef.current[i]) visibleData.push(allDataRef.current[i]); }
+          if (visibleData.length === 0) return;
+          let minPrice = Infinity; let maxPrice = -Infinity;
+          visibleData.forEach(d => { if (d.low < minPrice) minPrice = d.low; if (d.high > maxPrice) maxPrice = d.high; });
+          const numBins = 40;
+          const binSize = (maxPrice - minPrice) / numBins;
+          if (binSize === 0) return;
+          const bins = new Array(numBins).fill(0);
+          visibleData.forEach(d => {
+              const binIdx = Math.floor((d.close - minPrice) / binSize);
+              if (binIdx >= 0 && binIdx < numBins) bins[binIdx] += d.volume;
+          });
+          const maxVol = Math.max(...bins);
+          const elements = [];
+          const series = candleSeries.current;
+          for(let i = 0; i < numBins; i++) {
+              if (bins[i] === 0) continue;
+              const priceLevel = minPrice + (i * binSize) + (binSize / 2);
+              const coordinate = series.priceToCoordinate(priceLevel);
+              if (coordinate === null || coordinate < 0 || coordinate > 500) continue;
+              const widthPct = (bins[i] / maxVol) * 100;
+              const isPOC = bins[i] === maxVol;
+              let barColor = isPOC ? 'rgba(255, 61, 0, 0.85)' : 'rgba(21, 101, 192, 0.65)'; 
+              elements.push(<div key={i} className={`vp-bar ${isPOC ? 'vp-poc' : ''}`} style={{ top: coordinate - 2, width: `${widthPct}%`, backgroundColor: barColor }} />);
+          }
+          setVpElements(elements);
+      }, [showVP]);
+
+      useEffect(() => {
+        setLoading(true);
+        const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=${interval}&range=10y`;
+        const proxyUrl = 'https://corsproxy.io/?' + encodeURIComponent(yahooUrl);
+
+        fetch(proxyUrl)
+          .then(res => res.json())
+          .then(data => {
+            const result = data.chart.result[0];
+            const quotes = result.indicators.quote[0];
+            const timestamps = result.timestamp;
+            const candles = []; const volumes = [];
+            for (let i = 0; i < timestamps.length; i++) {
+              if (quotes.open[i] === null) continue;
+              const c = { time: timestamps[i], open: quotes.open[i], high: quotes.high[i], low: quotes.low[i], close: quotes.close[i], volume: quotes.volume[i] || 0 };
+              candles.push(c);
+              volumes.push({ time: timestamps[i], value: quotes.volume[i], color: quotes.close[i] >= quotes.open[i] ? 'rgba(38, 166, 154, 0.5)' : 'rgba(239, 83, 80, 0.5)' });
+            }
+            allDataRef.current = candles;
+
+            candleSeries.current.setData(candles);
+            volumeSeries.current.setData(volumes);
+            sma50.current.setData(calculateSMA(candles, 50));
+            sma200.current.setData(calculateSMA(candles, 200));
+            rsiLine.current.setData(calculateRSI(candles));
+            
+            const macdData = calculateMACD(candles);
+            macdLineSeries.current.setData(macdData.macdSeriesData);
+            signalLineSeries.current.setData(macdData.signalSeriesData);
+            macdHistSeries.current.setData(macdData.histSeriesData);
+            
+            const gh = calculateGoldhand(candles);
+            gold1.current.setData(gh.line1Data);
+            gold2.current.setData(gh.line2Data);
+            goldFillSeries.current.setData(gh.fillData);
+
+            // Itt hívjuk meg az ÚJ logikát a stepFactor = 0.6 értékkel
+            const st = calculateStepTrend(candles, 14, 3.0, 0.6);
+            stepSeries.current.setData(st.lineData);
+            stepFillSeries.current.setData(st.fillData);
+            candleSeries.current.setMarkers(st.markers);
+            
+            setLoading(false);
+            setTimeout(updateVolumeProfile, 500);
+          })
+          .catch(e => { console.error(e); setLoading(false); });
+      }, [symbol, interval, updateVolumeProfile]);
+
+      useEffect(() => { if(sma50.current) { sma50.current.applyOptions({ visible: showSMA }); sma200.current.applyOptions({ visible: showSMA }); } }, [showSMA]);
+      useEffect(() => { if(gold1.current) { gold1.current.applyOptions({ visible: showGold }); gold2.current.applyOptions({ visible: showGold }); goldFillSeries.current.applyOptions({ visible: showGold }); } }, [showGold]);
+      useEffect(() => { if(stepSeries.current) { stepSeries.current.applyOptions({ visible: showStep }); stepFillSeries.current.applyOptions({ visible: showStep }); } }, [showStep]);
+      useEffect(() => { if(volumeSeries.current) volumeSeries.current.applyOptions({ visible: showVol }); }, [showVol]);
+      useEffect(() => { updateVolumeProfile(); }, [showVP, updateVolumeProfile]);
+
+      return (
+        <div className="app-container">
+          <div className="toolbar">
+            <div className="group">
+              <span className="label">ASSET</span>
+              <select value={symbol} onChange={e => setSymbol(e.target.value)}>
+                <option value="AAPL">AAPL</option>
+                <option value="TSLA">TSLA</option>
+                <option value="BTC-USD">BTC</option>
+                <option value="ETH-USD">ETH</option>
+                <option value="NVDA">NVDA</option>
+              </select>
+            </div>
+            <div className="group">
+              <span className="label">TF</span>
+              <button className={interval === '1d' ? 'active' : ''} onClick={() => setInterval('1d')}>1D</button>
+              <button className={interval === '1wk' ? 'active' : ''} onClick={() => setInterval('1wk')}>1W</button>
+            </div>
+            <div className="group">
+              <span className="label">IND</span>
+              <button className={showSMA ? 'toggle-on' : ''} onClick={() => setShowSMA(!showSMA)}>SMA</button>
+              <button className={`gold-btn ${showGold ? 'toggle-on' : ''}`} onClick={() => setShowGold(!showGold)}>GOLDHAND</button>
+              <button className={`step-btn ${showStep ? 'toggle-on' : ''}`} onClick={() => setShowStep(!showStep)}>MoneyLine</button>
+              <button className={showRSI ? 'toggle-on' : ''} onClick={() => setShowRSI(!showRSI)}>RSI</button>
+              <button className={showMACD ? 'toggle-on' : ''} onClick={() => setShowMACD(!showMACD)}>MACD</button>
+              <button className={showVol ? 'toggle-on' : ''} onClick={() => setShowVol(!showVol)}>VOL</button>
+              <button className={showVP ? 'toggle-on' : ''} onClick={() => setShowVP(!showVP)}>VPVR</button>
+            </div>
+            <div style={{marginLeft: 'auto', fontSize:'11px', color:'#888'}}>Goldhand Terminal (StepTrend Lazy Edition)</div>
+          </div>
+          
+          <div className="chart-wrapper">
+             {loading && <div className="loading">LOADING...</div>}
+             {showVP && <div className="vp-container">{vpElements}</div>}
+             <div ref={mainRef} className="main-chart" />
+             <div ref={rsiRef} className="indicator-chart" style={{ display: showRSI ? 'block' : 'none' }} />
+             <div ref={macdRef} className="indicator-chart" style={{ display: showMACD ? 'block' : 'none' }} />
+          </div>
+        </div>
+      );
+    };
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>

@@ -9,6 +9,7 @@ import {
     type ScenarioPrediction,
     type AggregatedScenarioData
 } from '@/types/prediction';
+import { formatPrice } from '@/lib/utils';
 
 interface ScenarioPriceMapProps {
     currentPrice: number;
@@ -104,7 +105,7 @@ export function ScenarioPriceMap({
                     style={{ top: '50%' }}
                 >
                     <div className="bg-background border border-primary/40 px-2 py-0.5 rounded-full text-[9px] font-black text-primary shadow-lg shadow-primary/20">
-                        ${currentPrice.toLocaleString()}
+                        {formatPrice(currentPrice)}
                     </div>
                 </div>
 

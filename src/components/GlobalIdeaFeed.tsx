@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { MessageSquare, TrendingUp, TrendingDown, User, Calendar } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { type ScenarioPrediction } from '@/types/prediction';
+import { formatPrice } from '@/lib/utils';
 
 export function GlobalIdeaFeed() {
     const [ideas, setIdeas] = useState<(ScenarioPrediction & { profiles: { display_name: string | null } })[]>([]);
@@ -42,9 +43,9 @@ export function GlobalIdeaFeed() {
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {ideas.map((idea) => {
-                const sentimentValue = idea.sentiment ?? (idea.bullish_probability ?? 50);
+                const sentimentValue = idea.sentiment ?? 50;
                 const isBullish = sentimentValue > 50;
-                const targetPrice = idea.target_price ?? (isBullish ? idea.bullish_target_price : idea.bearish_target_price);
+                const targetPrice = idea.target_price;
 
                 return (
                     <Card key={idea.id} className="bg-card/40 backdrop-blur-md border-border/50 rounded-2xl overflow-hidden hover:border-primary/20 transition-all flex flex-col">
@@ -80,7 +81,7 @@ export function GlobalIdeaFeed() {
                                 <div className="flex flex-col">
                                     <span className="text-[8px] font-black text-muted-foreground uppercase opacity-50">7-Day Target</span>
                                     <span className="text-[11px] font-black text-primary">
-                                        ${targetPrice?.toLocaleString() ?? 'N/A'}
+                                        {targetPrice ? formatPrice(targetPrice) : 'N/A'}
                                     </span>
                                 </div>
                                 <div className="flex items-center gap-1.5 text-[10px] font-black uppercase text-primary/60">

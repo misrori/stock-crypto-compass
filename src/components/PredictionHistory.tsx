@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
 import { type ScenarioPrediction } from '@/types/prediction';
+import { formatPrice } from '@/lib/utils';
 
 interface PredictionHistoryProps {
     history: ScenarioPrediction[];
@@ -214,17 +215,17 @@ export function PredictionHistory({ history }: PredictionHistoryProps) {
                                                     <div className="bg-emerald-500 h-full" style={{ width: `${sentimentValue}%` }} />
                                                 </div>
                                                 <div className="text-[9px] font-bold mt-1 text-muted-foreground">
-                                                    {sentimentValue}% {sentimentValue > 50 ? 'Bullish' : sentimentValue < 50 ? 'Bearish' : 'Neutral'}
+                                                    {sentimentValue > 50 ? `${sentimentValue}% Bullish` : sentimentValue < 50 ? `${100 - sentimentValue}% Bearish` : '50% Neutral'}
                                                 </div>
                                             </TableCell>
                                             <TableCell>
                                                 <div className="flex items-center gap-1 text-primary font-mono font-bold text-xs ring-1 ring-primary/10 px-2 py-0.5 rounded-md w-fit bg-primary/5">
-                                                    ${targetPrice?.toLocaleString() ?? '—'}
+                                                    {formatPrice(targetPrice)}
                                                 </div>
                                             </TableCell>
                                             <TableCell>
                                                 <div className="text-xs font-mono font-medium text-muted-foreground">
-                                                    ${pred.entry_price?.toLocaleString() ?? '—'}
+                                                    {formatPrice(pred.entry_price)}
                                                 </div>
                                             </TableCell>
                                             <TableCell className="pr-6 text-right">

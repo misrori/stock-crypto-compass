@@ -22,6 +22,7 @@ import { GlobalIdeaFeed } from '@/components/GlobalIdeaFeed';
 import { AssetSearchModal } from '@/components/AssetSearchModal';
 import { formatDistanceToNow } from 'date-fns';
 import { useState } from 'react';
+import { formatPrice } from '@/lib/utils';
 
 const Predictions = () => {
     const navigate = useNavigate();
@@ -49,7 +50,7 @@ const Predictions = () => {
                     <div className="space-y-2">
                         <h1 className="text-4xl font-black uppercase tracking-tight text-foreground flex items-center gap-3">
                             <Target className="w-10 h-10 text-primary" />
-                            Scenario Center
+                            Tip Center
                         </h1>
                         <p className="text-muted-foreground font-medium uppercase tracking-widest text-xs">
                             Manage your market consciousness and active calls
@@ -78,7 +79,7 @@ const Predictions = () => {
                                 <Award className="w-8 h-8 text-primary" />
                             </div>
                             <div>
-                                <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1">Active Calls</div>
+                                <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1">Active Tips</div>
                                 <div className="text-3xl font-black">{metrics.totalActive}</div>
                             </div>
                         </CardContent>
@@ -117,7 +118,7 @@ const Predictions = () => {
                 <div className="space-y-6">
                     <h2 className="text-xl font-black uppercase tracking-tight flex items-center gap-2">
                         <TrendingUp className="w-5 h-5 text-emerald-500" />
-                        Active Scenarios
+                        Active Tips
                     </h2>
                     {activePredictions.length === 0 ? (
                         <div className="p-12 text-center rounded-3xl border-2 border-dashed border-border/50 space-y-4">
@@ -127,15 +128,15 @@ const Predictions = () => {
                                 className="bg-primary hover:bg-primary/90 rounded-xl px-10 h-11 font-black uppercase tracking-widest"
                                 onClick={() => setSearchOpen(true)}
                             >
-                                <Target className="w-4 h-4 mr-2" /> Start First Prediction
+                                <Target className="w-4 h-4 mr-2" /> Start First Tip
                             </Button>
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                             {activePredictions.map((pred) => {
-                                const sentimentValue = pred.sentiment ?? (pred.bullish_probability ?? 50);
-                                const isBullish = sentimentValue > 50;
-                                const targetPrice = pred.target_price ?? (isBullish ? pred.bullish_target_price : pred.bearish_target_price);
+                                const sentimentValue = pred.sentiment;
+                                const isBullish = sentimentValue >= 50;
+                                const targetPrice = pred.target_price;
 
                                 return (
                                     <Card
@@ -159,14 +160,16 @@ const Predictions = () => {
                                                     <span className={`text-[9px] font-bold uppercase transition-colors ${isBullish ? 'text-emerald-500' : sentimentValue < 50 ? 'text-rose-500' : 'text-primary'}`}>
                                                         {isBullish ? 'Bullish Target' : sentimentValue < 50 ? 'Bearish Target' : 'Neutral Target'}
                                                     </span>
-                                                    <span className="text-2xl font-black leading-tight">${targetPrice?.toLocaleString()}</span>
+                                                    <span className="text-2xl font-black leading-tight">{formatPrice(targetPrice)}</span>
                                                 </div>
                                                 <div className="flex flex-col items-end">
                                                     <div className="w-16 h-1.5 rounded-full bg-muted/40 overflow-hidden flex mb-1 border border-border/20">
                                                         <div className="bg-rose-500 transition-all duration-1000" style={{ width: `${100 - sentimentValue}%` }} />
                                                         <div className="bg-emerald-500 transition-all duration-1000" style={{ width: `${sentimentValue}%` }} />
                                                     </div>
-                                                    <span className="text-[10px] font-black text-muted-foreground">{sentimentValue}%</span>
+                                                    <span className="text-[10px] font-black text-muted-foreground">
+                                                        {sentimentValue > 50 ? `${sentimentValue}%` : sentimentValue < 50 ? `${100 - sentimentValue}%` : '50%'}
+                                                    </span>
                                                 </div>
                                             </div>
                                             <div className="flex justify-between items-center text-[10px] font-bold py-2 border-t border-border/40">

@@ -7,6 +7,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/useAuth';
 import { Badge } from '@/components/ui/badge';
 import { useAssetDetail, type IntervalData, type Strategy } from '@/hooks/useAssetDetail';
+import { useGoldHandData } from '@/hooks/useGoldHandData';
 import { usePredictions } from '@/hooks/usePredictions';
 import { GoldHandStatusCard } from '@/components/GoldHandStatusCard';
 import { IndicatorsCard } from '@/components/IndicatorsCard';
@@ -17,7 +18,8 @@ import { PredictionHistory } from '@/components/PredictionHistory';
 import { ScenarioPriceMap } from '@/components/ScenarioPriceMap';
 import type { AssetType, Timeframe } from '@/hooks/useGoldHandData';
 import { useWatchlist } from '@/hooks/useWatchlist';
-import { Star } from 'lucide-react';
+import { Star, Layout } from 'lucide-react';
+import { AdvancedChart } from '@/components/AdvancedChart';
 
 declare global {
   interface Window {
@@ -49,64 +51,13 @@ const AssetDetail = () => {
     refetch: refetchPredictions
   } = usePredictions(decodedTicker, assetType);
 
-  const currentPrice = data?.intervals[timeframe]?.price_summary.last_close || data?.intervals.daily?.price_summary.last_close || 0;
+  const { data: summaryData } = useGoldHandData(assetType, timeframe);
+  const assetSummary = summaryData.find(a => a.ticker === decodedTicker);
+  const displayName = assetType === 'commodities' ? (assetSummary?.commodity_name || assetSummary?.name || decodedTicker) : (assetSummary?.name || decodedTicker);
 
-  // Redirect to auth if not logged in
-  useEffect(() => {
-    if (!authLoading && !user) {
-      navigate('/auth');
-    }
-  }, [authLoading, user, navigate]);
-
-  // Load TradingView widget
-  useEffect(() => {
-    if (!data || !chartContainerRef.current) return;
-
-    const script = document.createElement('script');
-    script.src = 'https://s3.tradingview.com/tv.js';
-    script.async = true;
-    script.onload = () => {
-      if (window.TradingView && chartContainerRef.current) {
-        const symbol = getTradingViewSymbol(decodedTicker, assetType, data);
-        new window.TradingView.widget({
-          container_id: chartContainerRef.current.id,
-          symbol: symbol,
-          interval: timeframe === 'daily' ? 'D' : 'W',
-          theme: 'dark',
-          style: '1',
-          locale: 'en',
-          toolbar_bg: '#0a0a0a',
-          enable_publishing: false,
-          hide_side_toolbar: false,
-          allow_symbol_change: true,
-          autosize: true,
-          height: 500,
-          studies: ['RSI@tv-basicstudies'],
-        });
-      }
-    };
-
-    document.head.appendChild(script);
-
-    return () => {
-      if (script.parentNode) {
-        script.parentNode.removeChild(script);
-      }
-    };
-  }, [data, decodedTicker, assetType, timeframe]);
-
-  const getTradingViewSymbol = (ticker: string, assetType: AssetType, data: any): string => {
-    // Use tradingview_id from data if available
-    const tradingViewId = data?.intervals?.[timeframe]?.extra_metrics?.tradingview_id
-      || data?.intervals?.daily?.extra_metrics?.tradingview_id;
-
-    if (tradingViewId) {
-      return tradingViewId;
-    }
-
-    // Fallback to manual mapping
+  const getTradingViewSymbol = (ticker: string, assetType: AssetType): string => {
     if (assetType === 'crypto') {
-      const cleanTicker = ticker.replace('-USD', '').replace('_USD', '').replace('USD', '');
+      const cleanTicker = ticker.replace('_USD', '').replace('USD', '');
       return `BINANCE:${cleanTicker}USDT`;
     }
     if (assetType === 'commodities') {
@@ -118,11 +69,24 @@ const AssetDetail = () => {
         'HG=F': 'COMEX:HG1!',
         'PL=F': 'NYMEX:PL1!',
         'PA=F': 'NYMEX:PA1!',
+        'BZ=F': 'ICEEUR:BRN1!',
       };
-      return commodityMap[ticker] || `TVC:${ticker.replace('=F', '')}`;
+      return commodityMap[ticker.toUpperCase()] || `TVC:${ticker.replace('=F', '')}`;
     }
     return `NASDAQ:${ticker}`;
   };
+
+  const tvSymbol = assetSummary?.tradingview_id || getTradingViewSymbol(decodedTicker, assetType);
+
+  const currentPrice = data?.intervals[timeframe]?.price_summary.last_close || data?.intervals.daily?.price_summary.last_close || 0;
+
+  // Redirect to auth if not logged in
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate('/auth');
+    }
+  }, [authLoading, user, navigate]);
+
 
   if (authLoading) {
     return (
@@ -151,7 +115,9 @@ const AssetDetail = () => {
               </Button>
               <div>
                 <div className="flex items-center gap-2">
-                  <h1 className="text-2xl font-bold text-foreground">{decodedTicker}</h1>
+                  <h1 className="text-2xl font-bold text-foreground">
+                    {displayName}
+                  </h1>
                   <Button
                     variant="ghost"
                     size="icon"
@@ -169,12 +135,12 @@ const AssetDetail = () => {
 
             <div className="flex items-center gap-3">
               <a
-                href={`https://www.tradingview.com/chart/?symbol=${getTradingViewSymbol(decodedTicker, assetType, data)}`}
+                href={`https://www.tradingview.com/chart/?symbol=${tvSymbol}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors"
               >
-                Open in TradingView
+                View on TradingView
                 <ExternalLink className="h-4 w-4" />
               </a>
               <Button
@@ -217,41 +183,12 @@ const AssetDetail = () => {
         {/* Content */}
         {data && currentIntervalData && (
           <>
-            {/* Timeframe selector */}
-            <div className="flex items-center justify-between">
-              <Tabs value={timeframe} onValueChange={(v) => setTimeframe(v as Timeframe)}>
-                <TabsList className="bg-card/50 border border-border">
-                  <TabsTrigger
-                    value="daily"
-                    className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-                  >
-                    <Calendar className="h-4 w-4" />
-                    Daily
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="weekly"
-                    disabled={!data.intervals.weekly}
-                    className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-                  >
-                    <Calendar className="h-4 w-4" />
-                    Weekly
-                  </TabsTrigger>
-                </TabsList>
-              </Tabs>
 
-              <p className="text-sm text-muted-foreground">
-                Data: {currentIntervalData.date_range.start} - {currentIntervalData.date_range.end}
-              </p>
-            </div>
-
-            {/* TradingView Chart */}
-            <div className="bg-card/50 backdrop-blur-sm border border-border rounded-xl overflow-hidden">
-              <div
-                id="tradingview-widget"
-                ref={chartContainerRef}
-                className="w-full h-[500px]"
-              />
-            </div>
+            {/* Advanced Chart */}
+            <AdvancedChart
+              symbol={decodedTicker}
+              assetType={assetType}
+            />
 
             {/* Gold Hand Status and Indicators */}
             {/* Gold Hand Status, Indicators and Price Map */}

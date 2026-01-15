@@ -102,6 +102,14 @@ export default function Dashboard() {
             </Button>
             <Button
               variant="outline"
+              onClick={() => navigate('/predictions')}
+              className="h-12 rounded-xl px-6 border-primary/20 hover:bg-primary/5 font-bold"
+            >
+              <Target className="w-4 h-4 mr-2" />
+              Tip Center
+            </Button>
+            <Button
+              variant="outline"
               onClick={() => navigate('/scanner')}
               className="h-12 rounded-xl px-6 border-primary/20 hover:bg-primary/5 font-bold"
             >
@@ -209,14 +217,14 @@ export default function Dashboard() {
                 <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center mb-4 group-hover:shadow-[0_0_30px_rgba(99,102,241,0.4)] transition-all">
                   <Target className="w-6 h-6 text-white" />
                 </div>
-                <CardTitle>Prediction Center</CardTitle>
+                <CardTitle>Tip Center</CardTitle>
                 <CardDescription>
-                  Market Consciousness
+                  Market Tips & Ideas
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground">
-                  View crowd sentiment and participation history.
+                  View crowd sentiment and active market tips.
                 </p>
               </CardContent>
             </Card>

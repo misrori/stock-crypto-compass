@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { TrendBadge } from './TrendBadge';
 import type { GoldHandAsset, AssetType } from '@/hooks/useGoldHandData';
 import { useWatchlist } from '@/hooks/useWatchlist';
+import { formatPrice } from '@/lib/utils';
 
 interface ScannerTableProps {
   data: GoldHandAsset[];
@@ -25,15 +26,6 @@ type SortConfig = {
   direction: 'asc' | 'desc' | null;
 };
 
-const formatPrice = (price: number): string => {
-  if (price >= 1000) {
-    return `$${price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  } else if (price >= 1) {
-    return `$${price.toFixed(2)}`;
-  } else {
-    return `$${price.toFixed(6)}`;
-  }
-};
 
 const formatTimeSinceFlipped = (days: number): string => {
   if (days === 0) return 'Today';
@@ -274,7 +266,6 @@ export const ScannerTable = ({ data, assetType, loading }: ScannerTableProps) =>
                     Change % <SortIcon column="ghl_change_percent" />
                   </div>
                 </TableHead>
-                <TableHead className="text-center text-muted-foreground">Chart</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -324,18 +315,6 @@ export const ScannerTable = ({ data, assetType, loading }: ScannerTableProps) =>
                     </TableCell>
                     <TableCell className={`text-right font-mono ${asset.ghl_change_percent >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                       {asset.ghl_change_percent >= 0 ? '+' : ''}{asset.ghl_change_percent.toFixed(2)}%
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <a
-                        href={`https://www.tradingview.com/chart/?symbol=${asset.tradingview_id || getTradingViewSymbol(asset.ticker, assetType)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                        className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
-                      >
-                        TradingView
-                        <ExternalLink className="h-3 w-3" />
-                      </a>
                     </TableCell>
                   </TableRow>
                 );
