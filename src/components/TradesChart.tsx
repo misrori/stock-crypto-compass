@@ -7,9 +7,13 @@ interface TradesChartProps {
   strategyName: string;
   ticker: string;
   assetType: AssetType;
+  interval?: '1d' | '1wk';
+  indicators?: any;
+  candles?: any[];
+  rsiParams?: { buy: number; sell: number };
 }
 
-export const TradesChart = ({ trades, strategyName, ticker, assetType }: TradesChartProps) => {
+export const TradesChart = ({ trades, strategyName, ticker, assetType, interval = '1d', indicators, candles, rsiParams }: TradesChartProps) => {
   if (!trades || trades.length === 0) {
     return (
       <div className="flex items-center justify-center h-64 text-muted-foreground">
@@ -24,7 +28,11 @@ export const TradesChart = ({ trades, strategyName, ticker, assetType }: TradesC
       assetType={assetType}
       trades={trades}
       strategyName={strategyName}
-      height={500}
+      height={700}
+      interval={interval}
+      indicators={indicators}
+      candles={candles}
+      rsiParams={rsiParams}
     />
   );
 };

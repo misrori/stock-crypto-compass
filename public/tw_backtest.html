@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+  <meta charset="UTF-8" />
+  <title>Goldhand Backtest Pro - RSI, Goldhand & MoneyLine</title>
+  
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/lightweight-charts@4.1.1/dist/lightweight-charts.standalone.production.js"></script>
+
+  <style>
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f4f7f9; color: #333; }
+    .app-container { display: flex; flex-direction: column; min-height: 100vh; }
+    
+    /* Toolbar */
+    .toolbar { background: #fff; padding: 15px 25px; display: flex; flex-wrap: wrap; gap: 20px; border-bottom: 1px solid #d1d9e0; align-items: flex-end; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .control-group { display: flex; flex-direction: column; gap: 6px; }
+    .control-group label { font-size: 11px; font-weight: 700; color: #444; text-transform: uppercase; letter-spacing: 0.5px; }
+    select, input { padding: 8px 12px; border: 1px solid #ced4da; border-radius: 6px; font-size: 14px; background: #fff; outline: none; transition: border-color 0.2s; }
+    select:focus, input:focus { border-color: #007bff; }
+
+    /* Stats Dashboard */
+    .dashboard { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; padding: 20px; background: #fff; border-bottom: 1px solid #d1d9e0; }
+    .stat-card { padding: 15px; border-radius: 8px; background: #f8f9fa; border: 1px solid #e9ecef; text-align: center; }
+    .stat-label { font-size: 12px; color: #6c757d; margin-bottom: 8px; font-weight: 600; }
+    .stat-value { font-size: 20px; font-weight: 800; color: #212529; }
+    .stat-value.win { color: #28a745; }
+    .stat-value.loss { color: #dc3545; }
+
+    /* Charts */
+    .chart-wrapper { flex-grow: 1; display: flex; flex-direction: column; background: #fff; position: relative; padding: 10px; }
+    #main-chart { flex-grow: 1; min-height: 500px; width: 100%; }
+    #rsi-chart { height: 160px; width: 100%; border-top: 2px solid #f0f0f0; }
+
+    /* Table */
+    .table-section { padding: 25px; background: #fff; border-top: 1px solid #d1d9e0; }
+    table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 14px; }
+    th { text-align: left; background: #f1f3f5; padding: 12px; color: #495057; border-bottom: 2px solid #dee2e6; }
+    td { padding: 12px; border-bottom: 1px solid #e9ecef; }
+    .res-pos { color: #28a745; font-weight: bold; }
+    .res-neg { color: #dc3545; font-weight: bold; }
+
+    .loading { position: fixed; inset: 0; background: rgba(255,255,255,0.8); display: flex; justify-content: center; align-items: center; z-index: 1000; font-weight: bold; color: #007bff; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef, useMemo } = React;
+    const { createChart, ColorType, LineStyle, CrosshairMode } = LightweightCharts;
+
+    // --- KALKULÁCIÓS MODULOK ---
+    const Indicators = {
+        calculateSMMA: (data, length) => {
+            const smma = new Array(data.length).fill(null);
+            let sum = 0;
+            for(let i = 0; i < length; i++) sum += data[i];
+            smma[length-1] = sum / length;
+            for(let i = length; i < data.length; i++) smma[i] = (smma[i-1] * (length - 1) + data[i]) / length;
+            return smma;
+        },
+        calculateRSI: (data, period = 14) => {
+            const results = new Array(data.length).fill(null);
+            let gains = 0, losses = 0;
+            for (let i = 1; i < data.length; i++) {
+                const diff = data[i].close - data[i-1].close;
+                const gain = diff > 0 ? diff : 0;
+                const loss = diff < 0 ? Math.abs(diff) : 0;
+                if (i <= period) {
+                    gains += gain; losses += loss;
+                    if (i === period) results[i] = 100 - (100 / (1 + (gains/period) / (losses/period)));
+                } else {
+                    gains = (gains * (period - 1) + gain) / period;
+                    losses = (losses * (period - 1) + loss) / period;
+                    results[i] = 100 - (100 / (1 + gains / losses));
+                }
+            }
+            return results;
+        },
+        calculateStepTrend: (data, period = 14, mult = 3, stepFactor = 0.6) => {
+            // StepTrend/MoneyLine logika
+            const atr = new Array(data.length).fill(null);
+            const trend = new Array(data.length).fill(null);
+            let trendDir = 1;
+            let trendLine = data[0].close;
+
+            for(let i = 1; i < data.length; i++) {
+                const tr = Math.max(data[i].high - data[i].low, Math.abs(data[i].high - data[i-1].close), Math.abs(data[i].low - data[i-1].close));
+                // Egyszerűsített ATR a backtesthez
+                const curAtr = tr; 
+                const longStop = data[i].close - (curAtr * mult);
+                const shortStop = data[i].close + (curAtr * mult);
+
+                if (trendDir === 1) {
+                    if (data[i].close < trendLine) { trendDir = -1; trendLine = shortStop; }
+                    else trendLine = Math.max(trendLine, longStop);
+                } else {
+                    if (data[i].close > trendLine) { trendDir = 1; trendLine = longStop; }
+                    else trendLine = Math.min(trendLine, shortStop);
+                }
+                trend[i] = { val: trendLine, dir: trendDir };
+            }
+            return trend;
+        }
+    };
+
+    const App = () => {
+        const [symbol, setSymbol] = useState('AAPL');
+        const [tf, setTf] = useState('1d');
+        const [strategy, setStrategy] = useState('GOLDHAND');
+        const [dates, setDates] = useState({ start: '2023-01-01', end: '2026-01-01' });
+        
+        // Specifikus beállítások
+        const [rsiConfig, setRsiConfig] = useState({ buy: 30, sell: 70 });
+        const [ghConfig, setGhConfig] = useState({ buyOn: 'gold', sellOn: 'blue' }); // gold, silver, blue
+
+        const [data, setData] = useState([]);
+        const [trades, setTrades] = useState([]);
+        const [loading, setLoading] = useState(false);
+
+        const mainChartRef = useRef();
+        const rsiChartRef = useRef();
+
+        // 1. ADATLETÖLTÉS
+        useEffect(() => {
+            const fetchData = async () => {
+                setLoading(true);
+                try {
+                    const proxy = 'https://corsproxy.io/?';
+                    const target = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=${tf}&range=10y`;
+                    const res = await fetch(proxy + encodeURIComponent(target));
+                    const json = await res.json();
+                    const result = json.chart.result[0];
+                    const quotes = result.indicators.quote[0];
+                    const candles = result.timestamp.map((t, i) => ({
+                        time: new Date(t * 1000).toISOString().split('T')[0],
+                        open: quotes.open[i], high: quotes.high[i], low: quotes.low[i], close: quotes.close[i]
+                    })).filter(c => c.open != null && c.time >= dates.start && c.time <= dates.end);
+                    setData(candles);
+                } catch (e) { alert("Hiba az adatok letöltésekor!"); }
+                setLoading(false);
+            };
+            fetchData();
+        }, [symbol, tf, dates]);
+
+        // 2. BACKTEST LOGIKA ÉS JELZÉSEK
+        const backtest = useMemo(() => {
+            if (data.length < 30) return { trades: [], indicators: {} };
+            const signals = new Array(data.length).fill(0); // 1: Vétel, -1: Eladás
+            const indicators = {};
+
+            if (strategy === 'RSI') {
+                const rsi = Indicators.calculateRSI(data);
+                indicators.rsi = rsi;
+                for(let i = 1; i < data.length; i++) {
+                    if (rsi[i] < rsiConfig.buy) signals[i] = 1;
+                    if (rsi[i] > rsiConfig.sell) signals[i] = -1;
+                }
+            } else if (strategy === 'GOLDHAND') {
+                const hl2 = data.map(d => (d.high + d.low) / 2);
+                const v1 = Indicators.calculateSMMA(hl2, 15);
+                const v2 = Indicators.calculateSMMA(hl2, 19);
+                const v3 = Indicators.calculateSMMA(hl2, 25);
+                const v4 = Indicators.calculateSMMA(hl2, 29);
+                indicators.gh = { v1, v2, v3, v4 };
+
+                const getColor = (i) => {
+                    if (v1[i] > v2[i] && v2[i] > v3[i] && v3[i] > v4[i]) return 'gold';
+                    if (v1[i] < v2[i] && v2[i] < v3[i] && v3[i] < v4[i]) return 'blue';
+                    return 'silver';
+                };
+
+                for(let i = 1; i < data.length; i++) {
+                    const color = getColor(i);
+                    const prevColor = getColor(i-1);
+                    if (color === ghConfig.buyOn && prevColor !== ghConfig.buyOn) signals[i] = 1;
+                    if (color === ghConfig.sellOn && prevColor !== ghConfig.sellOn) signals[i] = -1;
+                }
+            } else if (strategy === 'MONEYLINE') {
+                const mt = Indicators.calculateStepTrend(data);
+                indicators.money = mt;
+                for(let i = 1; i < data.length; i++) {
+                    if (mt[i-1]?.dir === -1 && mt[i]?.dir === 1) signals[i] = 1;
+                    if (mt[i-1]?.dir === 1 && mt[i]?.dir === -1) signals[i] = -1;
+                }
+            }
+
+            // Kötések feldolgozása (Másnapi nyitóáron)
+            const tradeLog = [];
+            let active = null;
+            for(let i = 0; i < data.length - 1; i++) {
+                if (!active && signals[i] === 1) {
+                    active = { buyDate: data[i+1].time, buyPrice: data[i+1].open };
+                } else if (active && signals[i] === -1) {
+                    const result = data[i+1].open / active.buyPrice;
+                    tradeLog.push({
+                        ...active,
+                        sellDate: data[i+1].time,
+                        sellPrice: data[i+1].open,
+                        profit: (result - 1) * 100,
+                        days: (new Date(data[i+1].time) - new Date(active.buyDate)) / (1000*3600*24)
+                    });
+                    active = null;
+                }
+            }
+            return { trades: tradeLog, indicators };
+        }, [data, strategy, rsiConfig, ghConfig]);
+
+        // 3. GRAFIKON MEGJELENÍTÉS
+        useEffect(() => {
+            if (!mainChartRef.current || data.length === 0) return;
+
+            const mainChart = createChart(mainChartRef.current, {
+                width: mainChartRef.current.clientWidth, height: 500,
+                layout: { background: { type: ColorType.Solid, color: '#ffffff' } },
+                grid: { vertLines: { color: '#f0f3fa' }, horzLines: { color: '#f0f3fa' } },
+                crosshair: { mode: CrosshairMode.Normal }
+            });
+
+            const candleSeries = mainChart.addCandlestickSeries({
+                upColor: '#26a69a', downColor: '#ef5350', borderVisible: false, wickUpColor: '#26a69a', wickDownColor: '#ef5350'
+            });
+            candleSeries.setData(data);
+
+            // Indikátor rajzolás stratégiától függően
+            if (strategy === 'GOLDHAND' && backtest.indicators.gh) {
+                const { v1, v4 } = backtest.indicators.gh;
+                // Csak v1 és v4 a sávhoz, színezve
+                const v1Line = mainChart.addLineSeries({ color: '#FFD700', lineWidth: 2, title: 'Goldhand High' });
+                const v4Line = mainChart.addLineSeries({ color: '#C0C0C0', lineWidth: 2, title: 'Goldhand Low' });
+                v1Line.setData(v1.map((v, i) => ({ time: data[i].time, value: v })));
+                v4Line.setData(v4.map((v, i) => ({ time: data[i].time, value: v })));
+            }
+
+            if (strategy === 'MONEYLINE' && backtest.indicators.money) {
+                const moneyLine = mainChart.addLineSeries({ lineWidth: 3, title: 'Money Line' });
+                moneyLine.setData(backtest.indicators.money.map((m, i) => ({ 
+                    time: data[i].time, 
+                    value: m?.val, 
+                    color: m?.dir === 1 ? '#2e7d32' : '#c62828' 
+                })));
+            }
+
+            // RSI Chart
+            let rsiChartObj;
+            if (strategy === 'RSI') {
+                rsiChartObj = createChart(rsiChartRef.current, {
+                    width: rsiChartRef.current.clientWidth, height: 160,
+                    layout: { background: { type: ColorType.Solid, color: '#ffffff' } },
+                    grid: { vertLines: { color: '#f0f3fa' }, horzLines: { color: '#f0f3fa' } },
+                });
+                const rsiSeries = rsiChartObj.addLineSeries({ color: '#7b1fa2', lineWidth: 2 });
+                rsiSeries.setData(backtest.indicators.rsi.map((r, i) => ({ time: data[i].time, value: r || 50 })));
+                rsiSeries.createPriceLine({ price: rsiConfig.sell, color: '#dc3545', lineStyle: LineStyle.Dashed });
+                rsiSeries.createPriceLine({ price: rsiConfig.buy, color: '#28a745', lineStyle: LineStyle.Dashed });
+                
+                mainChart.timeScale().subscribeVisibleLogicalRangeChange(range => rsiChartObj.timeScale().setVisibleLogicalRange(range));
+            }
+
+            // Kötések jelölése
+            candleSeries.setMarkers(backtest.trades.flatMap(t => [
+                { time: t.buyDate, position: 'belowBar', color: '#2196f3', shape: 'arrowUp', text: 'BUY' },
+                { time: t.sellDate, position: 'aboveBar', color: t.profit > 0 ? '#28a745' : '#dc3545', shape: 'arrowDown', text: 'SELL' }
+            ]));
+
+            return () => { mainChart.remove(); if(rsiChartObj) rsiChartObj.remove(); };
+        }, [data, backtest, strategy, rsiConfig]);
+
+        // Statisztikák
+        const stats = useMemo(() => {
+            if (!backtest.trades.length) return { winRate: 0, total: 1, hodl: 1 };
+            const wins = backtest.trades.filter(t => t.profit > 0).length;
+            const cumProfit = backtest.trades.reduce((acc, t) => acc * (1 + t.profit/100), 1);
+            const hodl = data.length > 0 ? data[data.length-1].close / data[0].open : 1;
+            return {
+                winRate: (wins / backtest.trades.length * 100).toFixed(1),
+                total: cumProfit.toFixed(2),
+                hodl: hodl.toFixed(2),
+                avgDays: Math.round(backtest.trades.reduce((a,b)=>a+b.days, 0) / backtest.trades.length)
+            };
+        }, [backtest, data]);
+
+        return (
+            <div className="app-container">
+                {loading && <div className="loading">Adatok betöltése és Backtest futtatása...</div>}
+                
+                <div className="toolbar">
+                    <div className="control-group">
+                        <label>Asset</label>
+                        <select value={symbol} onChange={e => setSymbol(e.target.value)}>
+                            <option value="AAPL">AAPL</option><option value="TSLA">TSLA</option>
+                            <option value="BTC-USD">BTC</option><option value="NVDA">NVDA</option>
+                        </select>
+                    </div>
+                    <div className="control-group">
+                        <label>TF</label>
+                        <select value={tf} onChange={e => setTf(e.target.value)}>
+                            <option value="1d">1 Napos</option><option value="1wk">1 Heti</option>
+                        </select>
+                    </div>
+                    <div className="control-group">
+                        <label>Dátum</label>
+                        <div style={{display:'flex', gap:'5px'}}>
+                            <input type="date" value={dates.start} onChange={e=>setDates({...dates, start:e.target.value})} />
+                            <input type="date" value={dates.end} onChange={e=>setDates({...dates, end:e.target.value})} />
+                        </div>
+                    </div>
+                    <div className="control-group">
+                        <label>Stratégia</label>
+                        <select value={strategy} onChange={e => setStrategy(e.target.value)}>
+                            <option value="GOLDHAND">Goldhand Line</option>
+                            <option value="RSI">RSI Safety Index</option>
+                            <option value="MONEYLINE">Money Line (StepTrend)</option>
+                        </select>
+                    </div>
+
+                    {strategy === 'RSI' && (
+                        <>
+                            <div className="control-group"><label>Vétel (RSI &lt;)</label>
+                                <input type="number" value={rsiConfig.buy} onChange={e=>setRsiConfig({...rsiConfig, buy:e.target.value})} />
+                            </div>
+                            <div className="control-group"><label>Eladás (RSI &gt;)</label>
+                                <input type="number" value={rsiConfig.sell} onChange={e=>setRsiConfig({...rsiConfig, sell:e.target.value})} />
+                            </div>
+                        </>
+                    )}
+
+                    {strategy === 'GOLDHAND' && (
+                        <>
+                            <div className="control-group"><label>Vétel színnél</label>
+                                <select value={ghConfig.buyOn} onChange={e=>setGhConfig({...ghConfig, buyOn:e.target.value})}>
+                                    <option value="gold">Arany (Bullish)</option><option value="silver">Ezüst (Neutral)</option><option value="blue">Kék (Bearish)</option>
+                                </select>
+                            </div>
+                            <div className="control-group"><label>Eladás színnél</label>
+                                <select value={ghConfig.sellOn} onChange={e=>setGhConfig({...ghConfig, sellOn:e.target.value})}>
+                                    <option value="blue">Kék (Bearish)</option><option value="silver">Ezüst (Neutral)</option><option value="gold">Arany (Bullish)</option>
+                                </select>
+                            </div>
+                        </>
+                    )}
+                </div>
+
+                <div className="dashboard">
+                    <div className="stat-card"><div className="stat-label">Trédek</div><div className="stat-value">{backtest.trades.length}</div></div>
+                    <div className="stat-card"><div className="stat-label">Win Ratio</div><div className="stat-value">{stats.winRate}%</div></div>
+                    <div className="stat-card"><div className="stat-label">Kumulatív Profit</div><div className="stat-value win">{stats.total}x</div></div>
+                    <div className="stat-card"><div className="stat-label">HODL Result</div><div className="stat-value" style={{color:'#f39c12'}}>{stats.hodl}x</div></div>
+                    <div className="stat-card"><div className="stat-label">Átlagos Hossz</div><div className="stat-value">{stats.avgDays} nap</div></div>
+                </div>
+
+                <div className="chart-wrapper">
+                    <div id="main-chart" ref={mainChartRef}></div>
+                    <div id="rsi-chart" ref={rsiChartRef} style={{display: strategy === 'RSI' ? 'block' : 'none'}}></div>
+                </div>
+
+                <div className="table-section">
+                    <h3>Tranzakciós Napló</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Nyitás</th><th>Vétel Ár</th><th>Zárás</th><th>Eladás Ár</th><th>Eredmény (%)</th><th>Hossz</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {backtest.trades.map((t, i) => (
+                                <tr key={i}>
+                                    <td>{t.buyDate}</td><td>${t.buyPrice.toFixed(2)}</td>
+                                    <td>{t.sellDate}</td><td>${t.sellPrice.toFixed(2)}</td>
+                                    <td className={t.profit > 0 ? 'res-pos' : 'res-neg'}>{t.profit.toFixed(2)}%</td>
+                                    <td>{Math.round(t.days)} nap</td>
+                                </tr>
+                            )).reverse()}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        );
+    };
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>

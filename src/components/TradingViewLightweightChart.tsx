@@ -9,14 +9,30 @@ interface TradingViewLightweightChartProps {
     trades: StrategyTrade[];
     strategyName: string;
     height?: number;
+    interval?: '1d' | '1wk';
+    candles?: any[]; // Pass pre-fetched candles
+    rsiParams?: { buy: number; sell: number };
+    indicators?: {
+        rsi?: (number | null)[];
+        gh?: {
+            v1: (number | null)[];
+            v2: (number | null)[];
+            v3: (number | null)[];
+            v4: (number | null)[];
+            v1_color?: string;
+            v4_color?: string;
+        };
+        ml?: { val: number; dir: number }[];
+    };
 }
 
 interface OHLCDataPoint {
-    time: number; // Unix timestamp in seconds
+    time: string | number; // Support both string (YYYY-MM-DD) and Unix timestamp
     open: number;
     high: number;
     low: number;
     close: number;
+    volume?: number;
 }
 
 export const TradingViewLightweightChart = ({
@@ -25,96 +41,65 @@ export const TradingViewLightweightChart = ({
     trades,
     strategyName,
     height = 500,
+    interval = '1d',
+    indicators,
+    candles = [],
+    rsiParams = { buy: 30, sell: 70 },
 }: TradingViewLightweightChartProps) => {
     const chartContainerRef = useRef<HTMLDivElement>(null);
+    const rsiContainerRef = useRef<HTMLDivElement>(null);
     const chartRef = useRef<IChartApi | null>(null);
+    const rsiChartRef = useRef<IChartApi | null>(null);
     const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
     const tradeBoxSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
+    const rsiSeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
     const tooltipRef = useRef<HTMLDivElement>(null);
 
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [ohlcData, setOhlcData] = useState<OHLCDataPoint[]>([]);
-
-    // Fetch OHLC data from Yahoo Finance
-    useEffect(() => {
-        const fetchOHLCData = async () => {
-            setLoading(true);
-            setError(null);
-
-            try {
-                // Construct Yahoo Finance symbol
-                let yahooTicker = ticker;
-                if (assetType === 'crypto') {
-                    // Convert crypto tickers: BTC-USD is already correct format for Yahoo
-                    yahooTicker = ticker.includes('-USD') ? ticker : `${ticker}-USD`;
-                } else if (assetType === 'commodities') {
-                    // Commodities already have =F suffix
-                    yahooTicker = ticker;
-                }
-
-                const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${yahooTicker}?interval=1d&range=max`;
-                const proxyUrl = 'https://corsproxy.io/?' + encodeURIComponent(yahooUrl);
-
-                const response = await fetch(proxyUrl);
-                if (!response.ok) {
-                    throw new Error(`Failed to fetch data: ${response.status}`);
-                }
-
-                const data = await response.json();
-                const result = data.chart.result[0];
-                const quote = result.indicators.quote[0];
-                const timestamps = result.timestamp;
-
-                const candles: OHLCDataPoint[] = [];
-                for (let i = 0; i < timestamps.length; i++) {
-                    // Skip null values (holidays/weekends)
-                    if (quote.open[i] === null) continue;
-
-                    candles.push({
-                        time: timestamps[i],
-                        open: quote.open[i],
-                        high: quote.high[i],
-                        low: quote.low[i],
-                        close: quote.close[i],
-                    });
-                }
-
-                setOhlcData(candles);
-            } catch (err) {
-                console.error('Error fetching OHLC data:', err);
-                setError(err instanceof Error ? err.message : 'Failed to fetch price data');
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchOHLCData();
-    }, [ticker, assetType]);
+    // Use candles directly to ensure alignment with indicators
+    const ohlcData = candles;
 
     // Initialize chart and add OHLC data
     useEffect(() => {
         if (!chartContainerRef.current || ohlcData.length === 0) return;
 
-        // Create chart
-        const chart = createChart(chartContainerRef.current, {
+        const isSplit = strategyName.toUpperCase().includes('RSI');
+        const totalHeight = isSplit ? 850 : height;
+        const mainHeight = isSplit ? totalHeight * 0.65 : totalHeight;
+        const rsiHeight = isSplit ? totalHeight * 0.35 : 0;
+
+        // Common options
+        const commonOptions = {
             layout: {
-                background: { color: 'transparent' },
-                textColor: '#a1a1aa',
+                background: { type: ColorType.Solid, color: 'transparent' },
+                textColor: '#d1d4dc',
+                fontSize: 10,
             },
-            width: chartContainerRef.current.clientWidth,
-            height: height,
             grid: {
-                vertLines: { color: 'rgba(161, 161, 170, 0.1)' },
-                horzLines: { color: 'rgba(161, 161, 170, 0.1)' },
-            },
-            timeScale: {
-                borderColor: 'rgba(161, 161, 170, 0.2)',
-                timeVisible: true,
-                secondsVisible: false,
+                vertLines: { color: 'rgba(42, 46, 57, 0.2)' },
+                horzLines: { color: 'rgba(42, 46, 57, 0.2)' },
             },
             rightPriceScale: {
-                borderColor: 'rgba(161, 161, 170, 0.2)',
+                borderColor: 'rgba(197, 203, 206, 0.1)',
+                minimumWidth: 65,
+            },
+            timeScale: {
+                borderColor: 'rgba(197, 203, 206, 0.1)',
+            },
+        };
+
+        // Create main chart
+        const chart = createChart(chartContainerRef.current, {
+            ...commonOptions,
+            width: chartContainerRef.current.clientWidth,
+            height: mainHeight,
+            timeScale: {
+                ...commonOptions.timeScale,
+                timeVisible: false, // Don't show time for daily/weekly
+                secondsVisible: false,
+                shiftVisibleRangeOnNewBar: true,
+                rightOffset: 12,
+                barSpacing: interval === '1wk' ? 12 : 6,
+                minBarSpacing: 0.5,
             },
             crosshair: {
                 mode: CrosshairMode.Normal,
@@ -123,28 +108,257 @@ export const TradingViewLightweightChart = ({
 
         chartRef.current = chart;
 
+        let rsiChart: IChartApi | null = null;
+        if (isSplit && rsiContainerRef.current) {
+            rsiChart = createChart(rsiContainerRef.current, {
+                ...commonOptions,
+                width: rsiContainerRef.current.clientWidth,
+                height: rsiHeight,
+                timeScale: {
+                    ...commonOptions.timeScale,
+                    visible: false, // Hidden for sync
+                },
+                crosshair: {
+                    mode: CrosshairMode.Normal,
+                },
+                leftPriceScale: {
+                    visible: true,
+                    borderColor: 'rgba(197, 203, 206, 0.1)',
+                },
+            });
+            rsiChartRef.current = rsiChart;
+        }
+
+        // Add volume series
+        const volumeSeries = chart.addHistogramSeries({
+            color: '#26a69a',
+            priceFormat: { type: 'volume' },
+            priceScaleId: '', // overlay
+        });
+        volumeSeries.priceScale().applyOptions({
+            scaleMargins: { top: 0.8, bottom: 0 },
+        });
+
+        const volumes = ohlcData.map(d => ({
+            time: d.time,
+            value: d.volume,
+            color: d.close >= d.open ? 'rgba(38, 166, 154, 0.4)' : 'rgba(239, 83, 80, 0.4)'
+        }));
+        volumeSeries.setData(volumes as any);
+
         // Add candlestickseries
         const candleSeries = chart.addCandlestickSeries({
-            upColor: '#10b981',
-            downColor: '#ef4444',
+            upColor: '#26a69a',
+            downColor: '#ef5350',
             borderVisible: false,
-            wickUpColor: '#10b981',
-            wickDownColor: '#ef4444',
+            wickUpColor: '#26a69a',
+            wickDownColor: '#ef5350',
         });
 
         candleSeriesRef.current = candleSeries;
         candleSeries.setData(ohlcData as any);
 
-        // Add trade box series
+        // Add trade box series (Enhanced rectangles)
         const tradeBoxSeries = chart.addCandlestickSeries({
-            upColor: 'rgba(16, 185, 129, 0.2)',
-            downColor: 'rgba(239, 68, 68, 0.2)',
+            upColor: 'rgba(16, 185, 129, 0.15)',
+            downColor: 'rgba(239, 68, 68, 0.15)',
             borderVisible: false,
             wickVisible: false,
             priceLineVisible: false,
             lastValueVisible: false,
         });
         tradeBoxSeriesRef.current = tradeBoxSeries;
+
+        // --- INDICATORS RENDERING ---
+        if (indicators) {
+            const sn = strategyName.toUpperCase();
+            if ((sn === 'RSI' || sn === 'RSI_STRATEGY') && indicators.rsi) {
+                const targetChart = rsiChart || chart;
+                const rsiSeries = targetChart.addLineSeries({
+                    color: '#BA68C8', // Vibrant purple
+                    lineWidth: 3,
+                    priceScaleId: isSplit ? 'left' : 'left',
+                });
+                rsiSeriesRef.current = rsiSeries;
+                const rsiData = ohlcData.map((d, i) => ({
+                    time: d.time,
+                    value: indicators.rsi![i] ?? undefined
+                })).filter(d => d.value !== undefined);
+                rsiSeries.setData(rsiData as any);
+
+                // Add Stronger RSI limits
+                [rsiParams.buy, rsiParams.sell].forEach(level => {
+                    rsiSeries.createPriceLine({
+                        price: level,
+                        color: 'rgba(255, 255, 255, 0.4)',
+                        lineWidth: 2,
+                        lineStyle: LineStyle.Dashed,
+                        axisLabelVisible: true,
+                        title: level === rsiParams.buy ? 'BUY' : 'SELL',
+                    });
+                });
+
+                // Highlight Crossing Points (Dots)
+                const crossingMarkers: any[] = [];
+                for (let i = 1; i < indicators.rsi.length; i++) {
+                    const prev = indicators.rsi[i - 1];
+                    const curr = indicators.rsi[i];
+                    if (prev === null || curr === null) continue;
+
+                    // Cross buy level
+                    if ((prev > rsiParams.buy && curr <= rsiParams.buy) || (prev < rsiParams.buy && curr >= rsiParams.buy)) {
+                        crossingMarkers.push({
+                            time: ohlcData[i].time,
+                            position: 'inBar',
+                            color: '#10b981',
+                            shape: 'circle',
+                            size: 1,
+                        });
+                    }
+                    // Cross sell level
+                    if ((prev < rsiParams.sell && curr >= rsiParams.sell) || (prev > rsiParams.sell && curr <= rsiParams.sell)) {
+                        crossingMarkers.push({
+                            time: ohlcData[i].time,
+                            position: 'inBar',
+                            color: '#ef4444',
+                            shape: 'circle',
+                            size: 1,
+                        });
+                    }
+                }
+
+                // Add Trade Markers to RSI too
+                if (trades && trades.length > 0) {
+                    trades.forEach(trade => {
+                        crossingMarkers.push({
+                            time: trade.buy_date,
+                            position: 'belowBar',
+                            color: '#10b981',
+                            shape: 'arrowUp',
+                            size: 2,
+                        });
+                        if (trade.sell_date) {
+                            crossingMarkers.push({
+                                time: trade.sell_date,
+                                position: 'aboveBar',
+                                color: '#ef4444',
+                                shape: 'arrowDown',
+                                size: 2,
+                            });
+                        }
+                    });
+                }
+                rsiSeries.setMarkers(crossingMarkers.sort((a, b) => (a.time > b.time ? 1 : -1)));
+            }
+
+            if (sn === 'GOLDHAND' && indicators.gh) {
+                const getGHStyle = (i: number) => {
+                    const v1 = indicators.gh!.v1[i];
+                    const v2 = indicators.gh!.v2[i];
+                    const v3 = indicators.gh!.v3[i];
+                    const v4 = indicators.gh!.v4[i];
+
+                    if (v1 === null || v2 === null || v3 === null || v4 === null) {
+                        return { line: '#999', fill: 'rgba(200, 200, 200, 0.1)' };
+                    }
+
+                    const bullish = (v1 > v2) && (v2 > v3) && (v3 > v4);
+                    const bearish = (v1 < v2) && (v2 < v3) && (v3 < v4);
+
+                    if (bullish) return { line: '#F57F17', fill: 'rgba(255, 192, 0, 0.2)' };
+                    if (bearish) return { line: '#1565C0', fill: 'rgba(21, 101, 192, 0.2)' };
+                    return { line: '#999', fill: 'rgba(200, 200, 200, 0.1)' };
+                };
+
+                // Add lines (v1 and v4 only, but colored dynamically)
+                const series1 = chart.addLineSeries({ lineWidth: 2, priceLineVisible: false, lastValueVisible: false });
+                const series4 = chart.addLineSeries({ lineWidth: 2, priceLineVisible: false, lastValueVisible: false });
+
+                series1.setData(ohlcData.map((d, i) => ({
+                    time: d.time,
+                    value: indicators.gh!.v1[i] ?? undefined,
+                    color: getGHStyle(i).line
+                })).filter(d => d.value !== undefined) as any);
+
+                series4.setData(ohlcData.map((d, i) => ({
+                    time: d.time,
+                    value: indicators.gh!.v4[i] ?? undefined,
+                    color: getGHStyle(i).line
+                })).filter(d => d.value !== undefined) as any);
+
+                // Add Fill (Shaded Area between v1 and v4)
+                const fillSeries = chart.addBarSeries({
+                    thinBars: false,
+                    openVisible: false,
+                    priceLineVisible: false,
+                    lastValueVisible: false,
+                });
+
+                const fillData = ohlcData.map((d, i) => {
+                    const v1 = indicators.gh!.v1[i];
+                    const v4 = indicators.gh!.v4[i];
+                    if (v1 === null || v4 === null) return null;
+                    return {
+                        time: d.time,
+                        open: v1,
+                        high: Math.max(v1, v4),
+                        low: Math.min(v1, v4),
+                        close: v4,
+                        color: getGHStyle(i).fill
+                    };
+                }).filter(d => d !== null);
+                fillSeries.setData(fillData as any);
+            }
+
+            if (sn === 'MONEYLINE' && indicators.ml) {
+                const mlSeries = chart.addLineSeries({
+                    lineWidth: 3,
+                    priceLineVisible: false,
+                    lastValueVisible: false,
+                });
+
+                mlSeries.setData(ohlcData.map((d, i) => {
+                    const val = indicators.ml![i];
+                    const isBullish = val?.dir === 1;
+                    let segmentColor = isBullish ? '#2e7d32' : '#c62828';
+
+                    if (i < indicators.ml!.length - 1) {
+                        const next = indicators.ml![i + 1];
+                        if (next && val && next.dir !== val.dir) {
+                            segmentColor = 'transparent';
+                        }
+                    }
+
+                    return {
+                        time: d.time,
+                        value: val ? val.val : undefined,
+                        color: segmentColor
+                    };
+                }).filter(d => d.value !== undefined) as any);
+
+                // Add MoneyLine Fill (Cloud)
+                const mlFillSeries = chart.addBarSeries({
+                    thinBars: false,
+                    openVisible: false,
+                    priceLineVisible: false,
+                    lastValueVisible: false,
+                });
+                const mlFillData = ohlcData.map((d, i) => {
+                    const ml = indicators.ml![i];
+                    if (!ml) return null;
+                    const isBullish = ml.dir === 1;
+                    return {
+                        time: d.time,
+                        open: ml.val,
+                        high: Math.max(ml.val, d.close),
+                        low: Math.min(ml.val, d.close),
+                        close: d.close,
+                        color: isBullish ? 'rgba(46, 125, 50, 0.15)' : 'rgba(198, 40, 40, 0.15)'
+                    };
+                }).filter(d => d !== null);
+                mlFillSeries.setData(mlFillData as any);
+            }
+        }
 
 
         // Add trade markers and box data
@@ -157,12 +371,9 @@ export const TradingViewLightweightChart = ({
                 const candleTimes = ohlcData.map(c => c.time as number);
                 if (candleTimes.length === 0) return null;
 
-                // For markers, we want to find the exact candle or the one immediately following the trade date
-                // especially for weekly/daily alignment
                 const exactMatch = candleTimes.find(t => t === timestamp);
                 if (exactMatch) return exactMatch;
 
-                // Find the first candle that is >= our timestamp
                 const nextCandle = candleTimes.find(t => t >= timestamp);
                 return nextCandle || null;
             };
@@ -170,41 +381,35 @@ export const TradingViewLightweightChart = ({
             trades.forEach((trade) => {
                 const isProfit = trade.result >= 1;
                 const markerColor = isProfit ? '#10b981' : '#ef4444';
-                const rawBuyTimestamp = new Date(trade.buy_date).getTime() / 1000;
-                const buyTimestamp = findNearestCandleTime(rawBuyTimestamp);
+                const buyTimestamp = trade.buy_date; // Using string date directly
 
                 if (buyTimestamp) {
                     const buyKey = `${buyTimestamp}_buy`;
-
-                    // Buy marker (Deduplicated)
                     if (!markerMap.has(buyKey)) {
                         markerMap.set(buyKey, {
                             time: buyTimestamp,
                             position: 'belowBar',
-                            color: markerColor,
+                            color: '#10b981', // Always green for buy
                             shape: 'arrowUp',
                             text: 'BUY',
+                            size: 2,
                         });
                     }
                 }
 
-                // Sell marker (if closed, Deduplicated)
-                // We check for sell_date existence rather than 'closed' status to be robust
-                // This matches the logic used for rendering the trade boxes
                 if (trade.sell_date) {
-                    const rawSellTimestamp = new Date(trade.sell_date).getTime() / 1000;
-                    const sellTimestamp = findNearestCandleTime(rawSellTimestamp);
+                    const sellTimestamp = trade.sell_date;
 
                     if (sellTimestamp) {
                         const sellKey = `${sellTimestamp}_sell`;
-
                         if (!markerMap.has(sellKey)) {
                             markerMap.set(sellKey, {
                                 time: sellTimestamp,
                                 position: 'aboveBar',
-                                color: markerColor,
+                                color: '#ef4444', // Always red for sell
                                 shape: 'arrowDown',
                                 text: 'SELL',
+                                size: 2,
                             });
                         }
                     }
@@ -215,15 +420,13 @@ export const TradingViewLightweightChart = ({
 
             // Generate box data for each OHLC candle
             ohlcData.forEach((candle) => {
-                const candleTime = candle.time as number;
-                // Find the active trade for this candle
+                const candleTime = candle.time as string;
                 const activeTrade = trades.find((t) => {
-                    const buyT = new Date(t.buy_date).getTime() / 1000;
-                    const sellT = t.sell_date ? new Date(t.sell_date).getTime() / 1000 : Infinity;
-                    return candleTime >= buyT && candleTime <= sellT;
+                    return candleTime >= t.buy_date && (!t.sell_date || candleTime <= t.sell_date);
                 });
 
                 if (activeTrade) {
+                    const isProfit = activeTrade.result >= 1;
                     boxData.push({
                         time: candleTime,
                         open: activeTrade.buy_price,
@@ -236,6 +439,38 @@ export const TradingViewLightweightChart = ({
 
             candleSeries.setMarkers(markers);
             tradeBoxSeries.setData(boxData);
+        }
+
+        // SYNC Clocks (Refined)
+        if (chart && rsiChart && candleSeries && rsiSeriesRef.current) {
+            const syncCharts = [
+                { chart: chart, series: candleSeries },
+                { chart: rsiChart, series: rsiSeriesRef.current }
+            ];
+
+            syncCharts.forEach(c => {
+                c.chart.timeScale().subscribeVisibleLogicalRangeChange(range => {
+                    if (range) {
+                        syncCharts.forEach(other => {
+                            if (other.chart !== c.chart) other.chart.timeScale().setVisibleLogicalRange(range);
+                        });
+                    }
+                });
+
+                c.chart.subscribeCrosshairMove(param => {
+                    if (!param.time || param.point === undefined) {
+                        syncCharts.forEach(other => {
+                            if (other.chart !== c.chart) other.chart.clearCrosshairPosition();
+                        });
+                    } else {
+                        syncCharts.forEach(other => {
+                            if (other.chart !== c.chart && other.series) {
+                                other.chart.setCrosshairPosition(0, param.time!, other.series);
+                            }
+                        });
+                    }
+                });
+            });
         }
 
         // Tooltip handling
@@ -254,11 +489,9 @@ export const TradingViewLightweightChart = ({
                 return;
             }
 
-            const candleTime = param.time as number;
+            const candleTime = param.time as string;
             const activeTrade = trades.find((t) => {
-                const buyT = new Date(t.buy_date).getTime() / 1000;
-                const sellT = t.sell_date ? new Date(t.sell_date).getTime() / 1000 : Infinity;
-                return candleTime >= buyT && candleTime <= sellT;
+                return candleTime >= t.buy_date && (!t.sell_date || candleTime <= t.sell_date);
             });
 
             if (activeTrade) {
@@ -304,6 +537,9 @@ export const TradingViewLightweightChart = ({
             if (chartContainerRef.current && chart) {
                 chart.applyOptions({ width: chartContainerRef.current.clientWidth });
             }
+            if (rsiContainerRef.current && rsiChart) {
+                rsiChart.applyOptions({ width: rsiContainerRef.current.clientWidth });
+            }
         };
 
         window.addEventListener('resize', handleResize);
@@ -311,52 +547,66 @@ export const TradingViewLightweightChart = ({
         return () => {
             window.removeEventListener('resize', handleResize);
             chart.remove();
+            if (rsiChart) rsiChart.remove();
         };
-    }, [ohlcData, trades, height]);
+    }, [ohlcData, trades, height, indicators, strategyName, interval]);
 
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center bg-muted/20 rounded-lg" style={{ height: `${height}px` }}>
-                <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-                    <p className="text-sm text-muted-foreground">Loading price data...</p>
-                </div>
-            </div>
-        );
-    }
 
-    if (error) {
-        return (
-            <div className="flex items-center justify-center bg-destructive/10 rounded-lg" style={{ height: `${height}px` }}>
-                <div className="text-center">
-                    <p className="text-destructive mb-2">Error loading price data</p>
-                    <p className="text-sm text-muted-foreground">{error}</p>
-                </div>
-            </div>
-        );
-    }
+    const isSplit = strategyName.toUpperCase().includes('RSI');
+    const totalHeight = isSplit ? 850 : height;
+    const mainHeight = isSplit ? totalHeight * 0.65 : totalHeight;
+    const rsiHeight = isSplit ? totalHeight * 0.35 : 0;
+
+    const logoStyle = {
+        backgroundImage: "url('https://i.ibb.co/TMdGbqfK/hattergh.png')",
+        backgroundRepeat: 'no-repeat' as const,
+        backgroundPosition: 'center center',
+        backgroundSize: '300px'
+    };
 
     return (
-        <div className="relative w-full rounded-lg overflow-hidden bg-card/30">
-            <div ref={chartContainerRef} className="w-full" />
-            <div
-                ref={tooltipRef}
-                style={{
-                    position: 'absolute',
-                    display: 'none',
-                    padding: '12px',
-                    boxSizing: 'border-box',
-                    border: '1px solid',
-                    borderRadius: '8px',
-                    backgroundColor: 'rgba(24, 24, 27, 0.95)',
-                    color: '#e4e4e7',
-                    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.3)',
-                    zIndex: 1000,
-                    pointerEvents: 'none',
-                    minWidth: '180px',
-                    fontFamily: 'Inter, system-ui, sans-serif'
-                }}
-            />
+        <div className="flex flex-col gap-2 w-full">
+            <div className="relative w-full rounded-2xl overflow-hidden bg-card/30 border border-border/50">
+                <div
+                    ref={chartContainerRef}
+                    className="w-full"
+                    style={{
+                        height: `${mainHeight}px`,
+                        ...logoStyle
+                    }}
+                />
+                <div
+                    ref={tooltipRef}
+                    style={{
+                        position: 'absolute',
+                        display: 'none',
+                        padding: '12px',
+                        boxSizing: 'border-box',
+                        border: '1px solid',
+                        borderRadius: '12px',
+                        backgroundColor: 'rgba(24, 24, 27, 0.95)',
+                        color: '#e4e4e7',
+                        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.3)',
+                        zIndex: 1000,
+                        pointerEvents: 'none',
+                        minWidth: '180px',
+                        fontFamily: 'Inter, system-ui, sans-serif'
+                    }}
+                />
+            </div>
+
+            {isSplit && (
+                <div className="relative w-full rounded-2xl overflow-hidden bg-card/30 border border-border/50">
+                    <div
+                        ref={rsiContainerRef}
+                        className="w-full"
+                        style={{
+                            height: `${rsiHeight}px`,
+                            ...logoStyle
+                        }}
+                    />
+                </div>
+            )}
         </div>
     );
 };

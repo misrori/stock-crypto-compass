@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, RefreshCw, ExternalLink, Calendar, Star, Layout } from 'lucide-react';
+import { ArrowLeft, RefreshCw, ExternalLink, Calendar, Star, Layout, ChevronRight, TrendingUp, TrendingDown, Target, Zap, Clock, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -12,7 +12,9 @@ import { useGoldHandData } from '@/hooks/useGoldHandData';
 import { usePredictions } from '@/hooks/usePredictions';
 import { GoldHandStatusCard } from '@/components/GoldHandStatusCard';
 import { IndicatorsCard } from '@/components/IndicatorsCard';
-import { StrategyCard } from '@/components/StrategyCard';
+import { BacktestSummaryCards } from '@/components/BacktestSummaryCards';
+import { TradesTable } from '@/components/TradesTable';
+import { TradesChart } from '@/components/TradesChart';
 import { ScenarioPredictionForm } from '@/components/ScenarioPredictionForm';
 import { ScenarioAggregatedView } from '@/components/ScenarioAggregatedView';
 import { PredictionHistory } from '@/components/PredictionHistory';
@@ -20,6 +22,19 @@ import { ScenarioPriceMap } from '@/components/ScenarioPriceMap';
 import type { AssetType, Timeframe } from '@/hooks/useGoldHandData';
 import { useWatchlist } from '@/hooks/useWatchlist';
 import { AdvancedChart } from '@/components/AdvancedChart';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { useHistoricalData, type Interval } from '@/hooks/useHistoricalData';
+import { runBacktest, calculateSummary, type Trade, type BacktestSummary, type StrategyType } from '@/lib/backtest-engine';
+import { Slider } from '@/components/ui/slider';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 declare global {
   interface Window {
@@ -58,6 +73,94 @@ const AssetDetail = () => {
   const { data: summaryData } = useGoldHandData(assetType, timeframe);
   const assetSummary = summaryData.find(a => a.ticker === decodedTicker);
   const displayName = assetSummary?.display_name || (assetType === 'commodities' ? (assetSummary?.commodity_name || assetSummary?.name || decodedTicker) : (assetSummary?.name || decodedTicker));
+
+  // --- LOCAL BACKTEST STATE ---
+  const [activeStrategy, setActiveStrategy] = useState<StrategyType>('RSI');
+  const [rsiParams, setRsiParams] = useState({ buy: 30, sell: 70 });
+  const [ghParams, setGhParams] = useState({
+    buyColor: 'gold',
+    sellColor: 'blue',
+    p1: 15,
+    p2: 19,
+    p3: 25,
+    p4: 29
+  });
+  const [mlParams, setMlParams] = useState({ mult: 3 });
+  const [dateRange, setDateRange] = useState({ start: '', end: '' });
+  const [timeWindowIndices, setTimeWindowIndices] = useState<[number, number]>([0, 0]);
+
+  // Fetch 10y historical data for backtesting
+  const { candles, loading: candlesLoading } = useHistoricalData(decodedTicker, assetType, (timeframe === 'weekly' ? '1wk' : '1d') as Interval);
+
+  // Initialize date range once candles load
+  useEffect(() => {
+    if (candles.length > 0) {
+      if (!dateRange.start) {
+        setDateRange({
+          start: candles[0].time,
+          end: candles[candles.length - 1].time
+        });
+        setTimeWindowIndices([0, candles.length - 1]);
+      }
+    }
+  }, [candles, dateRange.start]);
+
+  // Update dates when indices change
+  const handleTimeWindowChange = (indices: [number, number]) => {
+    setTimeWindowIndices(indices);
+    if (candles[indices[0]] && candles[indices[1]]) {
+      setDateRange({
+        start: candles[indices[0]].time,
+        end: candles[indices[1]].time
+      });
+    }
+  };
+
+  const handleReset = () => {
+    setRsiParams({ buy: 30, sell: 70 });
+    setGhParams({
+      buyColor: 'gold',
+      sellColor: 'blue',
+      p1: 15,
+      p2: 19,
+      p3: 25,
+      p4: 29
+    });
+    setMlParams({ mult: 3 });
+    if (candles.length > 0) {
+      handleTimeWindowChange([0, candles.length - 1]);
+    }
+  };
+
+  // Filter candles based on selected date range
+  const filteredCandles = useMemo(() => {
+    return candles.filter(c => c.time >= dateRange.start && c.time <= dateRange.end);
+  }, [candles, dateRange]);
+
+  // Run backtest locally for active strategy
+  const activeBacktest = useMemo(() => {
+    if (filteredCandles.length === 0) return null;
+
+    const result = runBacktest(filteredCandles, activeStrategy, {
+      rsiBuy: rsiParams.buy,
+      rsiSell: rsiParams.sell,
+      ghBuyColor: ghParams.buyColor,
+      ghSellColor: ghParams.sellColor,
+      mlMult: mlParams.mult,
+      ghP1: ghParams.p1,
+      ghP2: ghParams.p2,
+      ghP3: ghParams.p3,
+      ghP4: ghParams.p4
+    });
+
+    const mappedTrades = result.trades.map((t, i) => ({ ...t, trade_id: i + 1 }));
+
+    return {
+      trades: mappedTrades,
+      indicators: result.indicators,
+      summary: calculateSummary(result.trades, filteredCandles)
+    };
+  }, [filteredCandles, activeStrategy, rsiParams, ghParams, mlParams]);
 
   const getTradingViewSymbol = (ticker: string, assetType: AssetType): string => {
     if (assetType === 'crypto') {
@@ -230,145 +333,261 @@ const AssetDetail = () => {
               <PredictionHistory history={predictionLog} />
             </div>
 
-            {/* Strategies with Trade History - Grouped by Type */}
-            <div className="space-y-4">
-              <h2 className="text-xl font-bold text-foreground">Strategy Backtests</h2>
+            {/* Local Backtesting Section */}
+            <div className="space-y-6">
+              <div className="flex flex-col gap-6 border-t border-border pt-6 mt-8">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div>
+                    <h2 className="text-2xl font-black uppercase tracking-tight text-foreground">Backtests</h2>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mt-1">Real-time simulation based on your parameters</p>
+                  </div>
+                </div>
 
-              {(() => {
-                // Group strategies by type
-                const goldHandStrategies: [string, Strategy][] = [];
-                const rsiStrategies: [string, Strategy][] = [];
-                const otherStrategies: [string, Strategy][] = [];
-
-                Object.entries(currentIntervalData.strategies).forEach(([name, strategy]) => {
-                  if (name.startsWith('goldhand_line')) {
-                    goldHandStrategies.push([name, strategy]);
-                  } else if (name.startsWith('rsi_')) {
-                    rsiStrategies.push([name, strategy]);
-                  } else {
-                    otherStrategies.push([name, strategy]);
-                  }
-                });
-
-                // Don't show tabs if only one category has strategies
-                const categoriesWithData = [
-                  goldHandStrategies.length > 0,
-                  rsiStrategies.length > 0,
-                  otherStrategies.length > 0
-                ].filter(Boolean).length;
-
-                if (categoriesWithData <= 1) {
-                  // Show all strategies without tabs
-                  return (
-                    <div className="grid grid-cols-1 gap-6">
-                      {Object.entries(currentIntervalData.strategies).map(([name, strategy]) => (
-                        <StrategyCard
-                          key={name}
-                          summary={strategy.summary}
-                          strategyName={name}
-                          trades={strategy.trades}
-                          ticker={decodedTicker}
-                          assetType={assetType}
-                          thresholds={strategy.thresholds}
-                        />
-                      ))}
+                {/* TWO-ROW CONTROLS */}
+                <div className="flex flex-col gap-4 bg-muted/20 p-6 rounded-2xl border border-border/50">
+                  {/* ROW 1: STRATEGY, INTERVAL, RESET */}
+                  <div className="grid grid-cols-1 lg:grid-cols-12 items-end gap-6 pb-4 border-b border-border/20">
+                    <div className="lg:col-span-5">
+                      <Label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground mb-3 block">Algorithm</Label>
+                      <div className="flex gap-2">
+                        {[
+                          { id: 'RSI', label: 'RSI Momentum', icon: Zap },
+                          { id: 'GOLDHAND', label: 'GoldHand Logic', icon: Target },
+                          { id: 'MONEYLINE', label: 'MoneyLine Trend', icon: Clock },
+                        ].map((s) => (
+                          <Button
+                            key={s.id}
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setActiveStrategy(s.id as StrategyType)}
+                            className={cn(
+                              "h-9 px-4 rounded-xl transition-all duration-300 group flex items-center gap-2",
+                              activeStrategy === s.id
+                                ? "bg-primary text-primary-foreground shadow-lg scale-105"
+                                : "text-muted-foreground hover:bg-muted/40"
+                            )}
+                          >
+                            <s.icon className="w-3.5 h-3.5" />
+                            <span className="text-[10px] font-black uppercase tracking-wider">{s.label}</span>
+                          </Button>
+                        ))}
+                      </div>
                     </div>
-                  );
-                }
 
-                // Show tabs with timeframe selector
-                return (
-                  <Tabs defaultValue={goldHandStrategies.length > 0 ? "ghl" : "rsi"} className="w-full">
-                    <div className="flex flex-col md:flex-row md:items-center gap-4 mb-4">
-                      {/* Timeframe Selector - Balanced Size */}
-                      <div className="flex bg-muted/60 rounded-xl p-1 border border-primary/10 shadow-md">
+                    <div className="lg:col-span-4">
+                      <Label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground mb-3 block">Interval</Label>
+                      <div className="flex bg-muted/40 rounded-xl p-1 border border-border/50 w-full max-w-[240px]">
                         <Button
-                          variant="ghost"
-                          size="sm"
-                          className={cn(
-                            "h-8 px-4 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all duration-300",
-                            timeframe === 'daily' ? "bg-primary text-primary-foreground shadow-lg scale-105 z-10" : "hover:bg-primary/20 opacity-70"
-                          )}
+                          variant="ghost" size="sm"
+                          className={cn("flex-1 h-9 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all", timeframe === 'daily' ? "bg-primary text-primary-foreground shadow-lg" : "hover:bg-primary/20 opacity-70")}
                           onClick={() => setTimeframe('daily')}
                         >
                           Daily
                         </Button>
                         <Button
-                          variant="ghost"
-                          size="sm"
-                          className={cn(
-                            "h-8 px-4 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all duration-300",
-                            timeframe === 'weekly' ? "bg-primary text-primary-foreground shadow-lg scale-105 z-10" : "hover:bg-primary/20 opacity-70"
-                          )}
+                          variant="ghost" size="sm"
+                          className={cn("flex-1 h-9 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all", timeframe === 'weekly' ? "bg-primary text-primary-foreground shadow-lg" : "hover:bg-primary/20 opacity-70")}
                           onClick={() => setTimeframe('weekly')}
                         >
                           Weekly
                         </Button>
                       </div>
-
-                      <TabsList className="grid bg-muted/30 p-1 rounded-xl" style={{ gridTemplateColumns: `repeat(${categoriesWithData}, 1fr)`, width: '100%', maxWidth: '500px' }}>
-                        {goldHandStrategies.length > 0 && (
-                          <TabsTrigger value="ghl" className="text-[10px] uppercase font-bold tracking-tight px-4">Gold Hand Line ({goldHandStrategies.length})</TabsTrigger>
-                        )}
-                        {rsiStrategies.length > 0 && (
-                          <TabsTrigger value="rsi" className="text-[10px] uppercase font-bold tracking-tight px-4">RSI Strategy ({rsiStrategies.length})</TabsTrigger>
-                        )}
-                        {otherStrategies.length > 0 && (
-                          <TabsTrigger value="other" className="text-[10px] uppercase font-bold tracking-tight px-4">Other ({otherStrategies.length})</TabsTrigger>
-                        )}
-                      </TabsList>
                     </div>
 
-                    {goldHandStrategies.length > 0 && (
-                      <TabsContent value="ghl" className="space-y-6">
-                        {goldHandStrategies.map(([name, strategy]) => (
-                          <StrategyCard
-                            key={name}
-                            summary={strategy.summary}
-                            strategyName={name}
-                            trades={strategy.trades}
-                            ticker={decodedTicker}
-                            assetType={assetType}
-                            thresholds={strategy.thresholds}
-                          />
-                        ))}
-                      </TabsContent>
-                    )}
+                    <div className="lg:col-span-3 flex justify-end">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleReset}
+                        className="h-9 px-4 rounded-xl text-[9px] font-black uppercase tracking-widest border-primary/20 hover:bg-primary/10 hover:text-primary transition-all flex items-center gap-2"
+                      >
+                        <RefreshCw className="w-3 h-3" />
+                        Reset Defaults
+                      </Button>
+                    </div>
+                  </div>
 
-                    {rsiStrategies.length > 0 && (
-                      <TabsContent value="rsi" className="space-y-6">
-                        {rsiStrategies.map(([name, strategy]) => (
-                          <StrategyCard
-                            key={name}
-                            summary={strategy.summary}
-                            strategyName={name}
-                            trades={strategy.trades}
-                            ticker={decodedTicker}
-                            assetType={assetType}
-                            thresholds={strategy.thresholds}
-                          />
-                        ))}
-                      </TabsContent>
-                    )}
+                  {/* ROW 2: PARAMETERS & TIME WINDOW */}
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start pt-2">
+                    {/* Dynamic Parameters Selector */}
+                    <div className="lg:col-span-6">
+                      <div className="flex justify-between items-center mb-3">
+                        <Label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
+                          {activeStrategy === 'MONEYLINE' ? 'Trend Sensitivity' : 'Strategy Parameters'}
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button variant="ghost" className="p-0 h-auto hover:bg-transparent">
+                                  <Info className="h-3 w-3 text-muted-foreground/60 hover:text-primary transition-colors" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent className="bg-background/95 backdrop-blur-md border-primary/20 p-3 max-w-xs shadow-2xl">
+                                <div className="space-y-2">
+                                  <p className="text-[10px] font-black uppercase tracking-wider text-primary">
+                                    {activeStrategy === 'GOLDHAND' ? 'GoldHand Logic' : activeStrategy === 'MONEYLINE' ? 'MoneyLine Logic' : 'RSI Momentum'}
+                                  </p>
+                                  <p className="text-[10px] font-medium leading-relaxed text-muted-foreground">
+                                    {activeStrategy === 'GOLDHAND' && "The GoldHand strategy uses four Simple Moving Average (SMMA) lines to identify trend strength and potential reversals. The 'Gold' and 'Silver' colors represent specific configurations of these lines, indicating bullish or bearish sentiment. Adjusting the periods (P1-P4) changes the sensitivity of these lines to price action."}
+                                    {activeStrategy === 'MONEYLINE' && "The MoneyLine strategy uses an Average True Range (ATR) multiplier to define a dynamic channel around the price. Trades are triggered when the price breaks out of this channel. A higher multiplier creates a wider channel, making the strategy less sensitive to minor price fluctuations."}
+                                    {activeStrategy === 'RSI' && "The Relative Strength Index (RSI) is a momentum oscillator that measures the speed and change of price movements. It oscillates between 0 and 100. Traditionally, RSI readings above 70 indicate overbought conditions, while readings below 30 indicate oversold conditions. These levels can be adjusted to fine-tune the strategy's sensitivity."}
+                                  </p>
+                                </div>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </Label>
+                        <span className="text-[10px] font-black text-primary">
+                          {activeStrategy === 'RSI' && `${rsiParams.buy} - ${rsiParams.sell}`}
+                          {activeStrategy === 'GOLDHAND' && `${ghParams.p1}, ${ghParams.p2}, ${ghParams.p3}, ${ghParams.p4}`}
+                          {activeStrategy === 'MONEYLINE' && `x${mlParams.mult.toFixed(1)}`}
+                        </span>
+                      </div>
 
-                    {otherStrategies.length > 0 && (
-                      <TabsContent value="other" className="space-y-6">
-                        {otherStrategies.map(([name, strategy]) => (
-                          <StrategyCard
-                            key={name}
-                            summary={strategy.summary}
-                            strategyName={name}
-                            trades={strategy.trades}
-                            ticker={decodedTicker}
-                            assetType={assetType}
-                            thresholds={strategy.thresholds}
+                      <div className="px-2">
+                        {activeStrategy === 'RSI' && (
+                          <Slider
+                            value={[rsiParams.buy, rsiParams.sell]}
+                            min={0} max={100} step={1}
+                            onValueChange={([b, s]) => setRsiParams({ buy: b, sell: s })}
+                            className="w-full h-8"
                           />
-                        ))}
-                      </TabsContent>
-                    )}
-                  </Tabs>
-                );
-              })()}
+                        )}
+
+                        {activeStrategy === 'GOLDHAND' && (
+                          <div className="space-y-6 w-full animate-in fade-in slide-in-from-top-1 duration-300">
+                            <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-2">
+                                <Label className="text-[8px] font-black uppercase tracking-widest text-muted-foreground opacity-50">Buy Alignment</Label>
+                                <Select value={ghParams.buyColor} onValueChange={(val) => setGhParams(p => ({ ...p, buyColor: val }))}>
+                                  <SelectTrigger className="h-8 text-[9px] font-bold uppercase tracking-wider bg-muted/40 border-none">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="gold" className="text-[9px] font-bold uppercase">Gold</SelectItem>
+                                    <SelectItem value="silver" className="text-[9px] font-bold uppercase">Silver</SelectItem>
+                                    <SelectItem value="blue" className="text-[9px] font-bold uppercase">Blue</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="space-y-2">
+                                <Label className="text-[8px] font-black uppercase tracking-widest text-muted-foreground opacity-50">Sell Alignment</Label>
+                                <Select value={ghParams.sellColor} onValueChange={(val) => setGhParams(p => ({ ...p, sellColor: val }))}>
+                                  <SelectTrigger className="h-8 text-[9px] font-bold uppercase tracking-wider bg-muted/40 border-none">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="gold" className="text-[9px] font-bold uppercase">Gold</SelectItem>
+                                    <SelectItem value="silver" className="text-[9px] font-bold uppercase">Silver</SelectItem>
+                                    <SelectItem value="blue" className="text-[9px] font-bold uppercase">Blue</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            </div>
+
+                            <div className="space-y-3">
+                              <div className="flex justify-between text-[8px] font-black opacity-50 uppercase tracking-widest">
+                                <span>Periods (v1 - v4)</span>
+                                <span>{ghParams.p1}, {ghParams.p2}, {ghParams.p3}, {ghParams.p4}</span>
+                              </div>
+                              <Slider
+                                value={[ghParams.p1, ghParams.p2, ghParams.p3, ghParams.p4]}
+                                min={10} max={50} step={1}
+                                onValueChange={(vals: number[]) => {
+                                  const sorted = [...vals].sort((a, b) => a - b);
+                                  setGhParams(prev => ({
+                                    ...prev,
+                                    p1: sorted[0],
+                                    p2: sorted[1],
+                                    p3: sorted[2],
+                                    p4: sorted[3]
+                                  }));
+                                }}
+                                className="w-full h-10"
+                              />
+                            </div>
+                          </div>
+                        )}
+
+                        {activeStrategy === 'MONEYLINE' && (
+                          <Slider
+                            value={[mlParams.mult]}
+                            min={1} max={10} step={0.1}
+                            onValueChange={([val]) => setMlParams(p => ({ ...p, mult: val }))}
+                            className="w-full h-8"
+                          />
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Time Window Slider */}
+                    <div className="lg:col-span-6 border-l border-border/50 pl-8">
+                      <div className="flex justify-between items-center mb-3">
+                        <Label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                          <Calendar className="h-3 w-3" /> Time Window
+                        </Label>
+                        <span className="text-[10px] font-black text-muted-foreground/80">
+                          {dateRange.start ? new Date(dateRange.start).toLocaleDateString('hu-HU') : '...'} - {dateRange.end ? new Date(dateRange.end).toLocaleDateString('hu-HU') : '...'}
+                        </span>
+                      </div>
+                      <div className="h-10 flex items-center px-2 pt-14">
+                        <Slider
+                          value={timeWindowIndices}
+                          min={0}
+                          max={Math.max(0, candles.length - 1)}
+                          step={1}
+                          onValueChange={handleTimeWindowChange as any}
+                          className="w-full"
+                        />
+                      </div>
+                      <p className="text-[8px] text-muted-foreground/40 leading-normal italic mt-4 text-center">
+                        Select the historical range to simulate the trade performance.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Strategy Card Result Section */}
+              {/* Dynamic Result Section (Single Column) */}
+              <div className="space-y-8 pb-10">
+                {activeBacktest ? (
+                  <>
+                    {/* 1. Summary Cards on Top */}
+                    <BacktestSummaryCards
+                      summary={activeBacktest.summary}
+                      isProfitable={activeBacktest.summary.average_result > 0}
+                      holdBeatsStrategy={activeBacktest.summary.hold_result > activeBacktest.summary.cumulative_result}
+                    />
+
+                    {/* 2. Integrated Chart in Middle */}
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between border-b border-border pb-2">
+                        <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/80">Strategy Visualization</h3>
+                      </div>
+                      <TradesChart
+                        trades={activeBacktest.trades as any}
+                        strategyName={activeStrategy === 'RSI' ? 'RSI_Strategy' : activeStrategy}
+                        ticker={decodedTicker}
+                        assetType={assetType}
+                        interval={(timeframe === 'weekly' ? '1wk' : '1d') as any}
+                        indicators={activeBacktest.indicators}
+                        candles={filteredCandles}
+                        rsiParams={rsiParams}
+                      />
+                    </div>
+
+                    {/* 3. Trades Table at Bottom */}
+                    <TradesTable trades={activeBacktest.trades as any} showLatest={100} />
+                  </>
+                ) : (
+                  <div className="h-[400px] flex items-center justify-center border-2 border-dashed border-border/30 rounded-2xl bg-card/10">
+                    <div className="text-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+                      <p className="text-sm font-bold text-muted-foreground uppercase tracking-widest">{candlesLoading ? 'Analyzing historical data...' : 'Adjust parameters to see results'}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </>
         )}
