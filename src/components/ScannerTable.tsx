@@ -116,10 +116,12 @@ export const ScannerTable = ({ data, assetType, loading }: ScannerTableProps) =>
   };
 
   const filteredAndSortedData = useMemo(() => {
+    const searchTerm = searchQuery.toLowerCase();
     let processed = data.filter(asset =>
-      asset.ticker.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (asset.name && asset.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      (asset.commodity_name && asset.commodity_name.toLowerCase().includes(searchQuery.toLowerCase()))
+      asset.ticker.toLowerCase().includes(searchTerm) ||
+      (asset.name && asset.name.toLowerCase().includes(searchTerm)) ||
+      (asset.commodity_name && asset.commodity_name.toLowerCase().includes(searchTerm)) ||
+      (asset.display_name && asset.display_name.toLowerCase().includes(searchTerm))
     );
 
     if (sortConfig.key && sortConfig.direction) {
@@ -271,7 +273,7 @@ export const ScannerTable = ({ data, assetType, loading }: ScannerTableProps) =>
             <TableBody>
               {filteredAndSortedData.map((asset) => {
                 const originalIndex = data.findIndex(x => x.ticker === asset.ticker);
-                const displayName = assetType === 'commodities' ? (asset.commodity_name || asset.name) : asset.name;
+                const displayName = asset.display_name || (assetType === 'commodities' ? (asset.commodity_name || asset.name) : asset.name);
                 const isFavorite = isInWatchlist(asset.ticker, assetType);
 
                 return (

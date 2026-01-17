@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Goldhand Terminal - Box Visualizer</title>
+  
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/lightweight-charts@4.1.1/dist/lightweight-charts.standalone.production.js"></script>
+
+  <style>
+    body { margin: 0; height: 100vh; overflow: hidden; font-family: -apple-system, sans-serif; background: #fff; color: #333; }
+    .app-container { display: flex; flex-direction: column; height: 100%; }
+    .toolbar { display: flex; gap: 15px; align-items: center; background: #f8f9fa; padding: 8px 15px; border-bottom: 1px solid #e0e0e0; flex-shrink: 0; }
+    .chart-wrapper { flex-grow: 1; position: relative; width: 100%; height: 100%; }
+    .main-chart { width: 100%; height: 100%; }
+    
+    .loading-overlay {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(255,255,255,0.95); z-index: 100;
+      display: flex; flex-direction: column; justify-content: center; align-items: center;
+      text-align: center;
+    }
+    .error-msg { color: #d32f2f; max-width: 400px; line-height: 1.5; background: #ffebee; padding: 20px; border-radius: 8px; border: 1px solid #ffcdd2; }
+
+    /* TOOLTIP */
+    #trade-tooltip {
+        position: absolute; display: none; width: 220px; padding: 12px;
+        background: rgba(255, 255, 255, 0.98); border: 1px solid #ddd;
+        border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+        z-index: 1000; font-size: 12px; pointer-events: none; font-family: 'Roboto', sans-serif;
+    }
+    .tt-header { font-weight: 800; font-size: 13px; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .tt-row { display: flex; justify-content: space-between; margin-bottom: 4px; border-bottom: 1px dashed #f0f0f0; padding-bottom: 2px; }
+    .tt-val { font-family: monospace; font-weight: 600; }
+  </style>
+</head>
+<body>
+
+  <div id="root"></div>
+  <div id="trade-tooltip"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+    const { createChart, ColorType, CrosshairMode } = LightweightCharts;
+
+    // --- MOCK ADAT HA NEM MEGY A YAHOO ---
+    const generateMockData = (days) => {
+        let data = [];
+        let price = 150;
+        const now = new Date();
+        for (let i = days; i > 0; i--) {
+            const time = new Date(now);
+            time.setDate(time.getDate() - i);
+            const dateStr = time.toISOString().split('T')[0];
+            price += (Math.random() - 0.5) * 5;
+            data.push({
+                time: dateStr, open: price, high: price + 2, low: price - 2, close: price + (Math.random() - 0.5)
+            });
+        }
+        return data;
+    };
+
+    const processTrades = (jsonData) => {
+        if (!jsonData || !jsonData.strategys || !jsonData.strategys.goldhandline_strategys) {
+            console.warn("Nem megfelelő JSON struktúra");
+            return { markers: [], tradesList: [] };
+        }
+        
+        const strategy = jsonData.strategys.goldhandline_strategys[0];
+        const markers = [];
+        
+        const tradesList = strategy.trades.map(trade => {
+            const isWin = trade.result >= 1;
+            const profitPct = (trade.result - 1) * 100;
+            
+            // Markerek kicsit eltolva a gyertyától
+            markers.push({ time: trade.buy_date, position: 'belowBar', color: '#2962ff', shape: 'arrowUp', text: 'BUY' });
+            markers.push({ time: trade.sell_date, position: 'aboveBar', color: isWin ? '#00c853' : '#d50000', shape: 'arrowDown', text: 'SELL' });
+
+            return {
+                buyDate: trade.buy_date, sellDate: trade.sell_date,
+                buyPrice: trade.buy_price, sellPrice: trade.sell_price,
+                profit: profitPct, isWin: isWin, days: trade.days_in_trade
+            };
+        });
+        
+        markers.sort((a, b) => (a.time > b.time) ? 1 : -1);
+        return { markers, tradesList };
+    };
+
+    const App = () => {
+      const [loading, setLoading] = useState(true);
+      const [error, setError] = useState(null);
+      const [tradesData, setTradesData] = useState([]);
+      
+      const mainRef = useRef(null);
+      const chart = useRef(null);
+      const candleSeries = useRef(null);
+      const tradeBoxSeries = useRef(null); // Ez lesz az új doboz réteg
+
+      // Chart inicializálás
+      useEffect(() => {
+        if (!mainRef.current) return;
+        
+        chart.current = createChart(mainRef.current, {
+          layout: { background: { type: ColorType.Solid, color: '#ffffff' }, textColor: '#333' },
+          grid: { vertLines: { color: '#f0f0f0' }, horzLines: { color: '#f0f0f0' } },
+          width: mainRef.current.clientWidth, height: window.innerHeight - 50,
+          timeScale: { borderColor: '#e0e0e0' },
+          rightPriceScale: { borderColor: '#e0e0e0' }
+        });
+
+        // 1. RÉTEG: TRADE DOBOZOK (Háttérben)
+        // Candlestick seriest használunk trükközve a dobozok kirajzolásához
+        tradeBoxSeries.current = chart.current.addCandlestickSeries({
+            upColor: 'rgba(76, 175, 80, 0.24)',      // Zöld doboz (Nyerő) - Áttetszőbb
+            downColor: 'rgba(239, 83, 80, 0.24)',    // Piros doboz (Vesztő) - Áttetszőbb
+            borderVisible: false,
+            wickVisible: false, // Nem kellenek kanócok, csak a doboz
+            priceLineVisible: false,
+            lastValueVisible: false,
+        });
+
+        // 2. RÉTEG: VALÓDI GYERTYÁK (Előtérben)
+        candleSeries.current = chart.current.addCandlestickSeries({
+            upColor: '#26a69a', downColor: '#ef5350', 
+            borderVisible: false, wickUpColor: '#26a69a', wickDownColor: '#ef5350'
+        });
+
+        // Tooltip kezelés (változatlan)
+        const tooltip = document.getElementById('trade-tooltip');
+        chart.current.subscribeCrosshairMove(param => {
+            if (!param.time || param.point === undefined || !tradesData.length) {
+                tooltip.style.display = 'none'; return;
+            }
+            const timeStr = typeof param.time === 'string' ? param.time : 
+                           (param.time.year + '-' + String(param.time.month).padStart(2,'0') + '-' + String(param.time.day).padStart(2,'0'));
+            
+            const activeTrade = tradesData.find(t => timeStr >= t.buyDate && timeStr <= t.sellDate);
+
+            if (activeTrade) {
+                const { x, y } = param.point;
+                const left = x + 20; const top = y + 20;
+                tooltip.style.display = 'block';
+                tooltip.style.left = left + 'px'; tooltip.style.top = top + 'px';
+                tooltip.style.borderColor = activeTrade.isWin ? '#00c853' : '#d50000';
+                tooltip.innerHTML = `
+                    <div class="tt-header" style="color: ${activeTrade.isWin ? '#00c853' : '#d50000'}">
+                        ${activeTrade.isWin ? 'NYERESÉG' : 'VESZTESÉG'}
+                    </div>
+                    <div class="tt-row"><span>Profit:</span> <span class="tt-val" style="color:${activeTrade.isWin ? '#00c853' : '#d50000'}">${activeTrade.profit.toFixed(2)}%</span></div>
+                    <div class="tt-row"><span>Belépő:</span> <span class="tt-val">${activeTrade.buyPrice.toFixed(2)}</span></div>
+                    <div class="tt-row"><span>Kilépő:</span> <span class="tt-val">${activeTrade.sellPrice.toFixed(2)}</span></div>
+                    <div class="tt-row"><span>Időtartam:</span> <span class="tt-val">${activeTrade.days} nap</span></div>
+                `;
+            } else { tooltip.style.display = 'none'; }
+        });
+
+        window.addEventListener('resize', () => chart.current.applyOptions({ width: mainRef.current.clientWidth, height: window.innerHeight - 50 }));
+        return () => chart.current.remove();
+      }, [tradesData]); 
+
+      // Adatbetöltés
+      useEffect(() => {
+        const fetchData = async () => {
+            try {
+                // GitHub Trade Adatok
+                const tradesResponse = await fetch('https://raw.githubusercontent.com/misrori/goldhand_data_collect/main/back_tests_daily/AAPL.json');
+                if (!tradesResponse.ok) throw new Error("GitHub hiba");
+                const tradeJson = await tradesResponse.json();
+                const { markers, tradesList } = processTrades(tradeJson);
+                setTradesData(tradesList);
+
+                // Árfolyam Adatok (Yahoo)
+                let candles = [];
+                try {
+                    const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/AAPL?interval=1d&range=10y`;
+                    const proxyUrl = 'https://corsproxy.io/?' + encodeURIComponent(yahooUrl);
+                    const priceRes = await fetch(proxyUrl);
+                    if (!priceRes.ok) throw new Error("Yahoo Proxy hiba");
+                    const priceData = await priceRes.json();
+                    const result = priceData.chart.result[0];
+                    const quotes = result.indicators.quote[0];
+                    const timestamps = result.timestamp;
+                    
+                    for (let i = 0; i < timestamps.length; i++) {
+                        if (quotes.open[i] === null) continue;
+                        const date = new Date(timestamps[i] * 1000).toISOString().split('T')[0];
+                        candles.push({ time: date, open: quotes.open[i], high: quotes.high[i], low: quotes.low[i], close: quotes.close[i] });
+                    }
+                } catch (yahooErr) {
+                    console.warn("Mock adat használata");
+                    candles = generateMockData(365 * 10);
+                    setError("CORS blokkolás miatt demo adatokat látsz. (Használd a Live Servert a valós adatokhoz!)");
+                }
+
+                if (chart.current) {
+                    // Valódi gyertyák
+                    candleSeries.current.setData(candles);
+                    candleSeries.current.setMarkers(markers);
+
+                    // --- ITT A TRÜKK: DOBOZ GENERÁLÁS ---
+                    const boxData = [];
+                    candles.forEach(candle => {
+                        // Megkeressük, hogy ezen a napon volt-e aktív trade
+                        const activeTrade = tradesList.find(t => candle.time >= t.buyDate && candle.time <= t.sellDate);
+                        
+                        if (activeTrade) {
+                            // Ha volt trade, rajzolunk egy "gyertyát", ami valójában a dobozunk
+                            // A "gyertya" teste a Vételi és Eladási ár között feszül
+                            boxData.push({
+                                time: candle.time,
+                                open: activeTrade.buyPrice,  // A doboz alja/teteje
+                                close: activeTrade.sellPrice, // A doboz teteje/alja
+                                high: Math.max(activeTrade.buyPrice, activeTrade.sellPrice), // Nincs kanóc, a high = max
+                                low: Math.min(activeTrade.buyPrice, activeTrade.sellPrice)   // Nincs kanóc, a low = min
+                            });
+                        }
+                    });
+                    
+                    // Dobozok kirajzolása a háttérrétegre
+                    tradeBoxSeries.current.setData(boxData);
+                }
+                setLoading(false);
+
+            } catch (err) {
+                console.error(err);
+                setError(err.message);
+                setLoading(false);
+            }
+        };
+
+        fetchData();
+      }, []);
+
+      return (
+        <div className="app-container">
+          <div className="toolbar">
+            <span style={{fontWeight:'bold', color:'#2196F3'}}>Goldhand Doboz Vizualizáció</span>
+            <span style={{fontSize:'12px', color:'#666', marginLeft:'10px'}}>
+               {tradesData.length > 0 ? `${tradesData.length} trade` : ''}
+            </span>
+          </div>
+          <div className="chart-wrapper">
+             <div ref={mainRef} className="main-chart" />
+             {loading && <div className="loading-overlay"><div>ADATOK BETÖLTÉSE...</div></div>}
+             {error && <div className="loading-overlay" style={{background: 'rgba(255,255,255,0.8)'}}><div className="error-msg"><h3>Info</h3><p>{error}</p></div></div>}
+          </div>
+        </div>
+      );
+    };
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>

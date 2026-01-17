@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, RefreshCw, ExternalLink, Calendar } from 'lucide-react';
+import { ArrowLeft, RefreshCw, ExternalLink, Calendar, Star, Layout } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useAuth } from '@/hooks/useAuth';
+import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
+import { useAuth } from '@/hooks/useAuth';
 import { useAssetDetail, type IntervalData, type Strategy } from '@/hooks/useAssetDetail';
 import { useGoldHandData } from '@/hooks/useGoldHandData';
 import { usePredictions } from '@/hooks/usePredictions';
@@ -18,7 +19,6 @@ import { PredictionHistory } from '@/components/PredictionHistory';
 import { ScenarioPriceMap } from '@/components/ScenarioPriceMap';
 import type { AssetType, Timeframe } from '@/hooks/useGoldHandData';
 import { useWatchlist } from '@/hooks/useWatchlist';
-import { Star, Layout } from 'lucide-react';
 import { AdvancedChart } from '@/components/AdvancedChart';
 
 declare global {
@@ -53,7 +53,7 @@ const AssetDetail = () => {
 
   const { data: summaryData } = useGoldHandData(assetType, timeframe);
   const assetSummary = summaryData.find(a => a.ticker === decodedTicker);
-  const displayName = assetType === 'commodities' ? (assetSummary?.commodity_name || assetSummary?.name || decodedTicker) : (assetSummary?.name || decodedTicker);
+  const displayName = assetSummary?.display_name || (assetType === 'commodities' ? (assetSummary?.commodity_name || assetSummary?.name || decodedTicker) : (assetSummary?.name || decodedTicker));
 
   const getTradingViewSymbol = (ticker: string, assetType: AssetType): string => {
     if (assetType === 'crypto') {
@@ -191,7 +191,6 @@ const AssetDetail = () => {
             />
 
             {/* Gold Hand Status and Indicators */}
-            {/* Gold Hand Status, Indicators and Price Map */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               <GoldHandStatusCard data={currentIntervalData} ticker={decodedTicker} />
               <IndicatorsCard data={currentIntervalData} />
@@ -273,20 +272,48 @@ const AssetDetail = () => {
                   );
                 }
 
-                // Show tabs for multiple categories
+                // Show tabs with timeframe selector
                 return (
                   <Tabs defaultValue={goldHandStrategies.length > 0 ? "ghl" : "rsi"} className="w-full">
-                    <TabsList className="grid w-full max-w-md" style={{ gridTemplateColumns: `repeat(${categoriesWithData}, 1fr)` }}>
-                      {goldHandStrategies.length > 0 && (
-                        <TabsTrigger value="ghl">Gold Hand Line ({goldHandStrategies.length})</TabsTrigger>
-                      )}
-                      {rsiStrategies.length > 0 && (
-                        <TabsTrigger value="rsi">RSI ({rsiStrategies.length})</TabsTrigger>
-                      )}
-                      {otherStrategies.length > 0 && (
-                        <TabsTrigger value="other">Other ({otherStrategies.length})</TabsTrigger>
-                      )}
-                    </TabsList>
+                    <div className="flex flex-col md:flex-row md:items-center gap-4 mb-4">
+                      {/* Timeframe Selector - Balanced Size */}
+                      <div className="flex bg-muted/60 rounded-xl p-1 border border-primary/10 shadow-md">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className={cn(
+                            "h-8 px-4 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all duration-300",
+                            timeframe === 'daily' ? "bg-primary text-primary-foreground shadow-lg scale-105 z-10" : "hover:bg-primary/20 opacity-70"
+                          )}
+                          onClick={() => setTimeframe('daily')}
+                        >
+                          Daily
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className={cn(
+                            "h-8 px-4 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all duration-300",
+                            timeframe === 'weekly' ? "bg-primary text-primary-foreground shadow-lg scale-105 z-10" : "hover:bg-primary/20 opacity-70"
+                          )}
+                          onClick={() => setTimeframe('weekly')}
+                        >
+                          Weekly
+                        </Button>
+                      </div>
+
+                      <TabsList className="grid bg-muted/30 p-1 rounded-xl" style={{ gridTemplateColumns: `repeat(${categoriesWithData}, 1fr)`, width: '100%', maxWidth: '500px' }}>
+                        {goldHandStrategies.length > 0 && (
+                          <TabsTrigger value="ghl" className="text-[10px] uppercase font-bold tracking-tight px-4">Gold Hand Line ({goldHandStrategies.length})</TabsTrigger>
+                        )}
+                        {rsiStrategies.length > 0 && (
+                          <TabsTrigger value="rsi" className="text-[10px] uppercase font-bold tracking-tight px-4">RSI Strategy ({rsiStrategies.length})</TabsTrigger>
+                        )}
+                        {otherStrategies.length > 0 && (
+                          <TabsTrigger value="other" className="text-[10px] uppercase font-bold tracking-tight px-4">Other ({otherStrategies.length})</TabsTrigger>
+                        )}
+                      </TabsList>
+                    </div>
 
                     {goldHandStrategies.length > 0 && (
                       <TabsContent value="ghl" className="space-y-6">

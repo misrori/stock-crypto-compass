@@ -55,6 +55,7 @@ export interface GoldHandAsset {
   price_per_earning?: number;
   earnings_per_share_basic_ttm?: number;
   number_of_employees?: number;
+  display_name?: string;
 }
 
 interface UseGoldHandDataResult {
@@ -105,6 +106,7 @@ const parseCSV = (csvText: string): GoldHandAsset[] => {
       tradingview_id: row['tradingview_id'] || undefined,
       market_capitalization: row['market_capitalization'] || undefined,
       commodity_name: row['commodity_name'] || undefined,
+      display_name: row['display_name'] ? row['display_name'].replace(/^["'\s]+|["'\s]+$/g, '') : undefined,
 
       // Technicals
       sma_50: parseFloat(row['sma_50']) || undefined,

@@ -99,6 +99,7 @@ export interface IntervalData {
     earnings_per_share_basic_ttm?: number;
     number_of_employees?: number;
     tradingview_id?: string;
+    display_name?: string;
   };
   strategies: {
     [key: string]: Strategy;
@@ -249,6 +250,7 @@ export const useAssetDetail = (
           earnings_per_share_basic_ttm: jsonData.summary_data?.earnings_per_share_basic_ttm,
           number_of_employees: jsonData.summary_data?.number_of_employees,
           tradingview_id: jsonData.summary_data?.tradingview_id,
+          display_name: jsonData.summary_data?.display_name,
         },
         strategies: {},
       };
