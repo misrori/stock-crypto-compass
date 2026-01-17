@@ -382,12 +382,12 @@ export const AdvancedChart: React.FC<AdvancedChartProps> = ({ symbol, assetType,
             elements.push(
                 <div
                     key={i}
-                    className={cn("absolute right-0 h-[2px] pointer-events-none transition-all duration-200", isPOC && "z-10")}
+                    className={cn("absolute left-0 h-[2px] pointer-events-none transition-all duration-200", isPOC && "z-10")}
                     style={{
                         top: coordinate,
                         width: `${widthPct}%`,
                         backgroundColor: barColor,
-                        borderLeft: isPOC ? '1px solid #ff3d00' : 'none'
+                        borderRight: isPOC ? '1px solid #ff3d00' : 'none'
                     }}
                 />
             );
@@ -472,6 +472,7 @@ export const AdvancedChart: React.FC<AdvancedChartProps> = ({ symbol, assetType,
             },
             rightPriceScale: {
                 borderColor: 'rgba(197, 203, 206, 0.1)',
+                minimumWidth: 65, // Unified width for alignment
             },
             timeScale: {
                 borderColor: 'rgba(197, 203, 206, 0.1)',
@@ -693,6 +694,53 @@ export const AdvancedChart: React.FC<AdvancedChartProps> = ({ symbol, assetType,
 
                 allDataRef.current = candles;
 
+                // --- DYNAMIC PRECISION ---
+                let precision = 2;
+                let minMove = 0.01;
+
+                if (candles.length > 0) {
+                    const minPrice = Math.min(...candles.map(c => c.low));
+                    if (minPrice < 0.0001) { precision = 8; minMove = 0.00000001; }
+                    else if (minPrice < 0.01) { precision = 6; minMove = 0.000001; }
+                    else if (minPrice < 1) { precision = 4; minMove = 0.0001; }
+                    else if (minPrice >= 1000) { precision = 0; minMove = 1; }
+                }
+
+                // Explicit custom formatter to guarantee display
+                const customFormatter = (price: number) => {
+                    // Start of volume logic: if value is huge, it's volume
+                    if (price > 10000000) {
+                        if (price >= 1000000000) return (price / 1000000000).toFixed(2) + 'B';
+                        if (price >= 1000000) return (price / 1000000).toFixed(2) + 'M';
+                    }
+                    return price.toFixed(precision);
+                };
+
+                const priceFormat = {
+                    type: 'custom',
+                    formatter: customFormatter,
+                    minMove: minMove
+                };
+
+                // FORCE global localization formatter to override axis
+                // This ensures the axis labels MUST use this format
+                chart.current?.applyOptions({
+                    localization: {
+                        priceFormatter: customFormatter
+                    },
+                    rightPriceScale: {
+                        minimumWidth: 65, // Unified width for alignment
+                    }
+                });
+
+                candleSeries.current?.applyOptions({ priceFormat: priceFormat as any });
+                sma50.current?.applyOptions({ priceFormat: priceFormat as any });
+                sma200.current?.applyOptions({ priceFormat: priceFormat as any });
+                ema21.current?.applyOptions({ priceFormat: priceFormat as any });
+                gold1.current?.applyOptions({ priceFormat: priceFormat as any });
+                gold2.current?.applyOptions({ priceFormat: priceFormat as any });
+                moneylineSeries.current?.applyOptions({ priceFormat: priceFormat as any });
+
                 candleSeries.current?.setData(candles);
                 volumeSeries.current?.setData(volumes);
 
@@ -857,7 +905,7 @@ export const AdvancedChart: React.FC<AdvancedChartProps> = ({ symbol, assetType,
 
                     {/* Volume Profile Overlay */}
                     {showVP && (
-                        <div className="vp-container absolute top-0 right-[60px] w-40 h-full pointer-events-none z-10 opacity-70">
+                        <div className="vp-container absolute top-0 left-0 w-40 h-full pointer-events-none z-10 opacity-70">
                             {vpElements}
                         </div>
                     )}

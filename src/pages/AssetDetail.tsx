@@ -41,6 +41,10 @@ const AssetDetail = () => {
   const assetType = (type || 'stocks') as AssetType;
   const decodedTicker = ticker ? decodeURIComponent(ticker) : '';
 
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [decodedTicker, assetType]);
+
   const { data, loading, error, refetch } = useAssetDetail(decodedTicker, assetType, timeframe);
   const {
     userActivePrediction,

@@ -296,7 +296,7 @@ export const ScannerTable = ({ data, assetType, loading }: ScannerTableProps) =>
                           </span>
                         </div>
                         <div>
-                          <p className="font-semibold text-foreground whitespace-nowrap">{displayName || asset.ticker}</p>
+                          <p className="font-semibold text-foreground break-words max-w-[200px]">{displayName || asset.ticker}</p>
                           <p className="text-xs text-muted-foreground">{asset.ticker}</p>
                         </div>
                       </div>
