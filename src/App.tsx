@@ -10,6 +10,7 @@ import Dashboard from "./pages/Dashboard";
 import Profile from "./pages/Profile";
 import Scanner from "./pages/Scanner";
 import Screener from "./pages/Screener";
+import Wiki from "./pages/Wiki";
 import AssetDetail from "./pages/AssetDetail";
 import Predictions from "./pages/Predictions";
 import Watchlist from "./pages/Watchlist";
@@ -31,6 +32,7 @@ const App = () => (
             <Route path="/profile" element={<Profile />} />
             <Route path="/scanner" element={<Scanner />} />
             <Route path="/screener" element={<Screener />} />
+            <Route path="/wiki" element={<Wiki />} />
             <Route path="/scanner/:type/:ticker" element={<AssetDetail />} />
             <Route path="/watchlist" element={<Watchlist />} />
             <Route path="/predictions" element={<Predictions />} />

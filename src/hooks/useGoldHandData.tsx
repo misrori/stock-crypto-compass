@@ -14,8 +14,12 @@ export interface GoldHandAsset {
   ghl_status: string;
   ghl_days_since_change: number;
   ghl_last_change_date: string;
+  ghl_last_change_price?: number;
   ghl_change_percent: number;
   rsi: number;
+  rsi_status?: string;
+  rsi_last_change_date?: string;
+  rsi_last_change_price?: number;
   sector?: string;
   industry?: string;
   tradingview_id?: string;
@@ -99,8 +103,12 @@ const parseCSV = (csvText: string): GoldHandAsset[] => {
       ghl_status: row['ghl_status'] || '',
       ghl_days_since_change: parseInt(row['ghl_days_since_last_change']) || 0,
       ghl_last_change_date: row['ghl_last_change_date'] || '',
+      ghl_last_change_price: parseFloat(row['ghl_last_change_price']) || undefined,
       ghl_change_percent: parseFloat(row['ghl_change_percent_from_last_change']) || 0,
       rsi: parseFloat(row['rsi']) || 0,
+      rsi_status: row['rsi_status'] || undefined,
+      rsi_last_change_date: row['rsi_last_change_date'] || undefined,
+      rsi_last_change_price: parseFloat(row['rsi_last_change_price']) || undefined,
       sector: row['sector'] || undefined,
       industry: row['industry'] || undefined,
       tradingview_id: row['tradingview_id'] || undefined,

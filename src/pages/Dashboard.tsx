@@ -110,6 +110,14 @@ export default function Dashboard() {
             </Button>
             <Button
               variant="outline"
+              onClick={() => navigate('/wiki')}
+              className="h-12 rounded-xl px-6 border-primary/20 hover:bg-primary/5 font-bold"
+            >
+              <Globe className="w-4 h-4 mr-2" />
+              Wiki Hub
+            </Button>
+            <Button
+              variant="outline"
               onClick={() => navigate('/scanner')}
               className="h-12 rounded-xl px-6 border-primary/20 hover:bg-primary/5 font-bold"
             >
@@ -246,6 +254,25 @@ export default function Dashboard() {
               <CardContent>
                 <p className="text-sm text-muted-foreground">
                   Update your interests and favorite trading resources.
+                </p>
+              </CardContent>
+            </Card>
+          </Link>
+
+          <Link to="/wiki">
+            <Card className="bg-gradient-to-br from-amber-500/10 to-orange-500/10 border-amber-500/30 hover:border-amber-500/60 transition-all cursor-pointer group h-full">
+              <CardHeader>
+                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center mb-4 group-hover:shadow-[0_0_30px_rgba(245,158,11,0.4)] transition-all">
+                  <Globe className="w-6 h-6 text-white" />
+                </div>
+                <CardTitle>Indicators Hub</CardTitle>
+                <CardDescription>
+                  Master our toolset
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">
+                  Deep dive into GoldHand Line, MoneyLine, and RSI mechanics.
                 </p>
               </CardContent>
             </Card>
